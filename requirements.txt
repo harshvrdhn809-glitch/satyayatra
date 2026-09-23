@@ -1,0 +1,4 @@
+# SatyaYatra ke Python package. Baaki sab Python ki apni library se chalta hai.
+pillow
+truststore
+PyJWT[crypto]

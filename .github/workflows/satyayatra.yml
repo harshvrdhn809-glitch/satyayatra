@@ -1,0 +1,152 @@
+# SatyaYatra - poora pipeline GitHub Actions par, laptop ke bina.
+#
+# Har 20 minute ek run: ~15 minute tak wahi kaam jo laptop par sy_main.py
+# lagataar karta tha (Telegram dekhna, khabar dhoondhna, video banana,
+# approval ke baad YouTube). Phir hisaab (database, YouTube token, bani hui
+# video) encrypted roop mein GitHub cache mein chala jaata hai aur agli run
+# wahin se uthati hai. Poora tareeka aur Secrets ki suchi: CLOUD.md.
+#
+# Haath se chalana: Actions -> SatyaYatra -> Run workflow.
+#   mode = run    - aam run (samay 'minutes' se)
+#   mode = check  - sirf jaanch (sy_check.py), kuch banta/bachta nahi
+
+name: SatyaYatra
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'run = aam kaam, check = sirf jaanch'
+        type: choice
+        options: [run, check]
+        default: run
+      minutes:
+        description: 'Kitne minute kaam (run mode)'
+        default: '15'
+
+# Ek waqt mein ek hi run. Do run ek saath chalti to dono ek hi purane
+# hisaab se shuru hoti aur ek ka kaam doosri mita deti.
+concurrency:
+  group: satyayatra
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    # Render aur YouTube sign-in ka intezaar mila kar bhi isse zyada nahi.
+    timeout-minutes: 120
+    env:
+      TZ: Asia/Kolkata          # bulletin ke ghante wagairah India ke samay mein
+      PYTHONUTF8: '1'
+      PYTHONUNBUFFERED: '1'
+      SY_CLOUD: '1'
+      STATE_KEY: ${{ secrets.STATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: STATE_KEY hai?
+        run: |
+          if [ -z "$STATE_KEY" ]; then
+            echo "::error::STATE_KEY secret nahi hai. CLOUD.md mein dekhiye - iske bina hisaab bach nahi sakta."
+            exit 1
+          fi
+
+      - name: ffmpeg aur Devanagari font
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ffmpeg fonts-noto-core fonts-noto-ui-core >/dev/null
+          ffmpeg -hide_banner -buildconf | grep -q libass || { echo "::error::ffmpeg mein libass nahi"; exit 1; }
+          fc-list | grep -qi devanagari || { echo "::error::Devanagari font nahi mila"; exit 1; }
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Python package
+        run: pip install -q -r requirements.txt
+
+      - name: Pichhla hisaab (state)
+        id: state
+        uses: actions/cache/restore@v4
+        with:
+          path: .sy-cache/state.enc
+          key: sy-state-${{ github.run_id }}
+          restore-keys: sy-state-
+
+      - name: Pichhli media (video)
+        id: media
+        uses: actions/cache/restore@v4
+        with:
+          path: .sy-cache/media.enc
+          key: sy-media-none
+          restore-keys: sy-media-
+
+      - name: Hisaab kholo
+        id: unpack
+        run: cloud/state.sh unpack
+
+      - name: config.ini aur service account
+        env:
+          GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
+        run: |
+          cp config.cloud.ini config.ini
+          umask 077
+          if [ -n "$GCP_SA_JSON" ]; then
+            printf '%s' "$GCP_SA_JSON" > satyayatra-sa.json
+          fi
+
+      - name: SatyaYatra
+        env:
+          SY_BUDGET_MINUTES: ${{ inputs.minutes || '15' }}
+          SY__ANTHROPIC__API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SY__SARVAM__API_KEY: ${{ secrets.SARVAM_API_KEY }}
+          SY__ELEVENLABS__API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          SY__PEXELS__API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          SY__PIXABAY__API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+          SY__CONTACT__EMAIL: ${{ secrets.CONTACT_EMAIL }}
+          SY__TELEGRAM__BOT_TOKEN: ${{ secrets.SATYAYATRA_TELEGRAM_BOT_TOKEN }}
+          SY__TELEGRAM__CHAT_ID: ${{ secrets.SATYAYATRA_TELEGRAM_CHAT_ID }}
+          SY__YOUTUBE__DEVICE_CLIENT_ID: ${{ secrets.YOUTUBE_DEVICE_CLIENT_ID }}
+          SY__YOUTUBE__DEVICE_CLIENT_SECRET: ${{ secrets.YOUTUBE_DEVICE_CLIENT_SECRET }}
+          SY__SOCIAL__FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          SY__SOCIAL__FB_TOKEN: ${{ secrets.FB_TOKEN }}
+          SY__SOCIAL__IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          SY__SOCIAL__GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
+        run: |
+          if [ "${{ inputs.mode }}" = "check" ]; then
+            python sy_check.py
+          else
+            python sy_cloud.py
+          fi
+
+      # Neeche ke teeno kadam tab bhi chalte hain jab upar program gir jaye -
+      # warna Telegram ka offset aur beech ka kaam kho jaata. Par tabhi jab
+      # purana hisaab theek se khula ho: na khula ho to khaali hisaab purane
+      # ke upar nahi bachana hai.
+      - name: Hisaab bandho
+        id: pack
+        if: always() && steps.unpack.outcome == 'success' && inputs.mode != 'check'
+        env:
+          MEDIA_RESTORED_KEY: ${{ steps.media.outputs.cache-matched-key }}
+        run: cloud/state.sh pack
+
+      - name: Hisaab bachao (state)
+        if: always() && steps.pack.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: .sy-cache/state.enc
+          key: sy-state-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Media bachao (video)
+        if: always() && steps.pack.outcome == 'success' && steps.pack.outputs.media_changed == '1'
+        uses: actions/cache/save@v4
+        with:
+          path: .sy-cache/media.enc
+          key: ${{ steps.pack.outputs.media_key }}

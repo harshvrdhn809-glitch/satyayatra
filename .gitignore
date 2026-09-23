@@ -1,0 +1,38 @@
+# CHAABIYAN AUR NIJI CHEEZEIN - ye kabhi git mein nahi jaani chahiye.
+#
+# Ye file sabse zaroori hai. Ek baar koi chaabi git mein chali gayi to wo
+# hamesha ke liye itihas mein reh jaati hai - file hata dene se bhi nahi
+# jaati. Isliye pehle din se rok lagi hai.
+config.ini
+youtube-token.json
+client_secret*.json
+# Google service account ki private key - Veo/Vertex ke liye. Cloud par ye
+# GitHub Secret mein jaati hai, repo mein kabhi nahi.
+satyayatra-sa.json
+*-sa.json
+*.pem
+*.key
+
+# Kaam ka kachcha saamaan aur nateeje - ye har machine ka apna hai.
+satyayatra.db
+satyayatra.db-wal
+satyayatra.db-shm
+satyayatra.log
+work/
+output/
+demo/
+
+# Python ka apna kachra
+__pycache__/
+*.pyc
+
+# Windows/editor
+Thumbs.db
+desktop.ini
+.vscode/
+
+# Cloud (GitHub Actions) - run ke beech ki band potli. Repo mein kabhi nahi.
+.sy-cache/
+anchor_reference.jpg
+feedback/
+veo_clips/

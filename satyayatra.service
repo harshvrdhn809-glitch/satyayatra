@@ -1,0 +1,35 @@
+# SatyaYatra - systemd service.
+#
+# Isse do cheezein milti hain jo laptop par nahi thi:
+#   1. Server chalu hote hi program khud chal padta hai (WantedBy).
+#   2. Program kisi wajah se mar jaye to systemd use dobara chala deta
+#      hai (Restart=always) - koi window band nahi hoti, koi double-click
+#      nahi chahiye.
+#
+# Lagane ka tareeka SERVER.md mein likha hai.
+
+[Unit]
+Description=SatyaYatra News
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=satyayatra
+WorkingDirectory=/opt/satyayatra/app
+Environment=PYTHONUTF8=1
+Environment=PYTHONUNBUFFERED=1
+# HOME saaf-saaf batana zaroori hai. Iske bina Telegram ka /naya chalte
+# waqt git ko GitHub wali deploy key milti hi nahi (wo ~/.ssh mein hai),
+# aur pull "Permission denied (publickey)" par gir jaata hai.
+Environment=HOME=/opt/satyayatra
+ExecStart=/usr/bin/python3 /opt/satyayatra/app/sy_main.py
+Restart=always
+RestartSec=30
+
+# Thodi si suraksha - program ko sirf apne folder mein likhne dena.
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

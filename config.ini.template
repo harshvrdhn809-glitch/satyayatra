@@ -1,0 +1,418 @@
+# SatyaYatra - saari chaabiyan yahan.
+#
+# Is file ko "config.ini" naam se isi folder mein copy kijiye aur khaali
+# jagahein bhar dijiye. config.ini kabhi kisi ko mat bhejiye - na chat mein,
+# na kahin aur. Usme aapki asli chaabiyan hoti hain.
+#
+# Har value n8n ke Credentials se uthai ja sakti hai. Neeche bataya hai
+# ki kaun si kahan milegi.
+
+[anthropic]
+# n8n -> Credentials -> "Header Auth account" -> Value (sk-ant- se shuru)
+api_key =
+model = claude-sonnet-4-6
+# Vision jaanch (neeche [media] vision_gate dekhiye) baar-baar, kai
+# tasveeron par chalti hai - agar kharch/samay kam rakhna ho to yahan
+# ek sasta/tez model daal dijiye (jaise claude-haiku-4-5). Khaali chhoda
+# to upar wala 'model' hi vision ke liye bhi istemal hoga.
+vision_model =
+
+[tts]
+# Kaun sa aawaaz-provider chalega: sarvam ya elevenlabs. Khaali chhodne
+# par sarvam hi chalega (purana rawaiya, kuch nahi badalta). Sarvam ka
+# balance khatam ho ya switch karna ho to bas "elevenlabs" likh dijiye -
+# neeche [elevenlabs] mein chaabi aur voice_id bharna zaroori hai.
+provider = sarvam
+
+[sarvam]
+# n8n -> Credentials -> "Header Auth account 2"
+api_key =
+# Bhasha ki awaaz. bulbul:v3 ke saath 'ritu' chalti hai.
+model = bulbul:v3
+speaker = ritu
+# Khabar ke alawa (yojana/kaam/gyan/tech) shikshak wala andaaz - thodi
+# thehri aawaaz. 1.00 = natural; 0.85 se neeche mat le jaaiye (aawaaz
+# khinch kar toot-ti hai).
+teacher_pace = 0.92
+
+[elevenlabs]
+# elevenlabs.io -> Profile -> API keys
+api_key =
+# Voice Library mein jaakar Hindi/multilingual awaaz suniye aur uska
+# voice_id yahan daaliye (library ki awaaz ho to pehle "Add to My
+# Voices" karna padega, tabhi apni chaabi se chal payegi). Ek shuruaati
+# sujhaav: y2H4TwIU5I2L0JXOdBeX (Kanika - Confident News Voice, Hindi
+# news ke liye) - suniye zaroor, pasand na aaye to koi bhi aur voice_id
+# yahan daal dijiye.
+voice_id = y2H4TwIU5I2L0JXOdBeX
+model = eleven_multilingual_v2
+# 0.0-1.0 dono. stability zyada = sthir par kam bhaav; similarity_boost
+# zyada = chuni hui awaaz se zyada milta-julta.
+stability = 0.5
+similarity_boost = 0.75
+# 0.7-1.2. 1.0 = awaaz ki apni natural raftaar.
+speed = 1.0
+# Khabar ke alawa (yojana/kaam/gyan/tech) shikshak wala andaaz: kam
+# stability = zyada apnapan/utaar-chadhaav, thodi dheemi raftaar.
+teacher_stability = 0.35
+teacher_speed = 0.94
+
+[pexels]
+# n8n -> Credentials -> "Pexels Authorization (SatyaYatra)"
+api_key =
+
+[contact]
+# Wikimedia (Commons) ka apna niyam hai: apne-aap chalne wale har program
+# ko apna naam aur SAMPARK ka pata bhejna hota hai. Jo nahi bhejte unhe wo
+# jaan-boojhkar sabse sakht rate-limit mein daal dete hain - aur wahi ho
+# raha tha: har Commons request par HTTP 429, ek bhi tasveer nahi.
+#
+# Yahan apna email ya channel ka URL daal dijiye. Kuch bhi asli, jispar
+# aap tak pahuncha ja sake. Ye chaabi nahi hai - ye sirf pehchan hai.
+email =
+
+[pixabay]
+# Ek aur muft stock source - tasveer aur chalti footage dono.
+# Chaabi muft hai: pixabay.com par account banaiye, phir
+# pixabay.com/api/docs par apni key dikh jayegi.
+# Khaali chhod denge to kaam chalta rahega, bas ek source kam ho jayega.
+api_key =
+
+[telegram]
+# BotFather se mila token. n8n -> Credentials -> "Telegram account"
+bot_token =
+# Aapki apni chat ka number (@userinfobot se pata chalta hai).
+chat_id =
+
+[youtube]
+# Ye n8n se nahi aayenge - naye banane hain, aur yahi wo sudhaar hai
+# jiski upload wali samasya mein zaroorat thi.
+#
+# Google Cloud Console -> APIs & Services -> Credentials ->
+# Create Credentials -> OAuth client ID -> Application type: Desktop app
+#
+# "Desktop app" chuniye, "Web application" nahi - ab n8n beech mein nahi
+# hai, sign-in isi computer par hoga.
+client_id =
+client_secret =
+# Pehli baar chalane par browser khulega aur sign-in maangega. Uske baad
+# token yahin youtube-token.json mein reh jayega, dobara nahi poochhega.
+#
+# SERVER PAR CHALANE KE LIYE - ek alag client.
+#
+# Server par browser hota hi nahi, isliye upar wala Desktop client wahan
+# kaam nahi karta. Google ka chhote device wala tareeka chahiye, aur wo
+# sirf is kism ke client se chalta hai:
+#
+# Create Credentials -> OAuth client ID -> Application type:
+#   "TVs and Limited Input devices"
+#
+# Isse sign-in aise hota hai: program Telegram par ek chhota code bhejta
+# hai, aap phone par wo safha kholkar code daal dete hain. Laptop ki
+# zaroorat nahi.
+#
+# Laptop par chala rahe hain to ye do khaali rehne dijiye.
+device_client_id =
+device_client_secret =
+
+[social]
+# FACEBOOK PAGE AUR INSTAGRAM - YOUTUBE KE BAAD.
+#
+# Ye tabhi chalta hai jab video YouTube par chadh chuki ho, yaani aapka
+# approval pehle hi lag chuka hai. Koi naya gate nahi hai.
+#
+# Chalu karne ka aasan tareeka: Telegram par "/social on". Ye switch
+# config se upar rehta hai, taaki kharch ya koi gadbad dikhe to phone se
+# hi rok sakein.
+enabled = 0
+
+# Facebook Page ki id aur ek PAGE access token (user token nahi).
+# Banane ka tareeka SOCIAL.md mein kram se likha hai.
+fb_page_id =
+fb_token =
+
+# Instagram ka professional account id - wahi jo us Page se juda hai.
+# Khaali chhod denge to Instagram ka hissa chalega hi nahi.
+ig_user_id =
+
+# Instagram FILE nahi leta, PATA maangta hai. Isliye Reel pehle Google
+# Cloud Storage par rakhi jaati hai aur uska link Instagram ko diya jaata
+# hai. Yahan us bucket ka naam dijiye (sirf naam, gs:// nahi).
+#
+# Bucket sarvajanik roop se padha ja sakne wala hona chahiye, aur usme
+# purani file apne aap hatne ka intezam hona chahiye - dono ka tareeka
+# SOCIAL.md mein hai. Kharch paise-bhar ka hai aur credit se katega.
+gcs_bucket =
+
+[thumb]
+# THUMBNAIL KE LIYE AI-BANI, VISHAY-ANUSAAR BACKDROP.
+#
+# Jab kisi khabar ki koi sacchi tasveer/footage nahi milti, pehle sirf ek
+# saada geometric pattern (dhaariyaan/grid) thumbnail ka background banta
+# tha - kabhi galat nahi tha, par aakarshak bhi nahi. Ab uski jagah Vertex
+# se us khabar ki CATEGORY/entity/baat ke hisaab se ek illustration banti
+# hai (koi asli chehra ya ghatna ka jhootha "saboot" nahi - sirf mahaul),
+# aur screen par saaf "AI चित्रण" likha rehta hai.
+#
+# Apna alag kota hai - [veo]/[anchor] ka kota isse bilkul nahi kata.
+# Koshish fail ho (band ho, kota poora, SA na mile) to chup-chaap purana
+# geometric pattern chal jaata hai - thumbnail kabhi nahi rukti.
+ai_backdrop = 1
+image_model = gemini-2.5-flash-image
+max_per_day = 20
+# Khaali chhod dijiye to [veo] ka hi location/service_account chalega.
+location =
+
+[media]
+# TASVEER/FOOTAGE CHUNTE WAQT DEKH KAR JAANCH (vision gate).
+#
+# Ab tak har tasveer/clip sirf SHABD milaan se chuni jaati thi (khoj ka
+# shabd file ke naam/tag se mila to le lo) - kabhi DEKHI nahi jaati thi.
+# Isi wajah se thumbnail aur video ke drishya kabhi-kabhi be-mel ya kamzor
+# aate the. Ab har chuni hui tasveer/clip-frame le liye jaane se pehle
+# Claude ko khud dikhai jaati hai aur poochha jaata hai "ye theek hai?".
+#
+# 1 = chalu (default). 0 karne par purana, sirf-shabd wala tareeka wapas
+# aa jaata hai - koi aur cheez nahi rukti, bas ye aakhri jaanch nahi hoti.
+vision_gate = 1
+
+# STUDIO BACKGROUND - jis hisse ka footage nahi mila (na asli, na AI
+# chitran), wahan peeche channel ka chalta hua news-studio chalta hai.
+# Poori video mein ek bhi drishya na ho to poori video studio par.
+# 1 = chalu (default), 0 = band (purana: pichhli tasveer dobara / designed
+# backdrop). studio_bg khaali = assets\studio_bg.mp4. Apna studio video
+# lagana ho to uska path yahan (1920x1080 behtar).
+studio = 1
+studio_bg =
+
+[veo]
+# AI SE DRISHYA.
+#
+# Ye "gyan", "kaam ki baat", "yojana" - aur ab (Sep 2026, aapki apni maang
+# par) "khabar" aur "bulletin" par bhi chalta hai. Suchi (ALLOWED_BEATS)
+# code mein hai, yahan nahi. Har baar teen shart kaayam rehti hain (poori
+# wajah sy_veo.py ke shuru mein hai): screen par "AI चित्रण" label kabhi
+# nahi chhupta, ye kisi khaas GHATNA ka jhootha "saboot" kabhi nahi banta
+# (sirf jagah/mahaul ka drishya), aur koi insaani chehra kabhi nahi banta.
+#
+# Ye tab hi chalta hai jab us tukde par muft srot mein KUCH BHI na mile.
+# Pehle Commons, Openverse, Pexels, Pixabay - sab aazmaye jaate hain.
+#
+# 1 karne par chalu. Har clip par paisa lagta hai (Google Cloud ke credit
+# se katta hai), isliye pehle veojaanch.bat se ek clip banakar dekh lijiye.
+enabled = 0
+# Khaali chhod dijiye to isi folder ki satyayatra-sa.json uthai jayegi.
+service_account =
+# Khaali chhod dijiye to service account ki apni project id chalegi.
+project =
+location = us-central1
+# veo-3.1-fast-generate-001 sasta aur tez hai. Poora roop:
+# veo-3.1-generate-001
+model = veo-3.1-fast-generate-001
+# Veo 3 sirf 4, 6 ya 8 second leta hai. Beech ka ankda sabse paas wale par
+# bitha diya jaata hai.
+seconds = 6
+# 720p ya 1080p. 720p sasta hai aur ek tukde ke liye kaafi hai.
+resolution = 720p
+# Ek din mein itni se zyada clip nahi banegi - ye kharch ki sabse pakki
+# rok hai. Pehle sirf ~4 jaankari wali video ke liye 6 kaafi tha - ab
+# khabar/bulletin bhi isi seema mein shaamil hain, isliye zaroorat lage to
+# badha dijiye.
+max_per_day = 6
+# Jo asli tasveer mil chuki hai use halka chalta hua banana (image-to-video).
+# Ye nayi cheez nahi gadhta - jo hai usi ko hilata hai. Har aisi tasveer
+# par ek clip ka paisa lagta hai, isliye alag switch hai.
+animate_photos = 0
+
+[endcard]
+# VIDEO KE ANT MEIN LIKE / SUBSCRIBE / SHARE (~8 second, har video par).
+# Button wali animation hamesha (assets\cta_*.mp4). Peeche AI presenter -
+# pehli video par Veo se EK BAAR banti hai (assets\endcard_presenter.mp4),
+# Telegram par jhalak aati hai, phir har video mein wahi. Pasand na aaye
+# to wo file hata dijiye - agle din nayi banegi. Apna clip (jaise HeyGen)
+# usi naam se rakh dein to wahi chalega.
+# enabled = 0 : end-card bilkul nahi.  presenter = 0 : sirf animation,
+# studio background par (koi Veo kharch nahi).
+enabled = 1
+presenter = 1
+
+[explainer]
+# JAANKARI WALI VIDEO (yojana/kaam/gyan/tech) - shuru mein AI anchor vishay
+# kholti hai, ant mein wahi like/subscribe kehti hai. Har video ke liye EK
+# hi Veo clip (8 sec) - isliye ek video mein ek hi chehra. Beech ki script
+# TTS aawaaz aur footage par pehle jaisi. Khabar par nahi lagta.
+# mode: auto = pehle pasand aayi presenter ki tasveer se (Veo roke to aage
+# se sirf prompt se), image = sirf tasveer se, text = sirf prompt se.
+# Har video par ek Veo clip ka kharch - max_per_day se seema.
+enabled = 1
+mode = auto
+max_per_day = 6
+
+[anchor]
+# AI ANCHOR - bulletin ke sirf INTRO aur OUTRO par ek chehra.
+#
+# Beech ki das khabrein waisi hi rehti hain jaisi bina anchor ke bhi
+# hoti - ye sirf shuru ("namaskar, dekhiye...") aur ant ("...bane
+# rahiye") ke 6-8 second ka hissa hai.
+#
+# Chehra jaan-boojhkar photoreal NAHI hai - ek saaf 3D/graphic kirdaar,
+# jo dekhte hi lage ki ye AI hai, kisi asli vyakti jaisa nahi. Pehli
+# baar chalne par apne aap ban jaata hai (anchor_reference.jpg) aur
+# roz wahi tasveer istemal hoti hai taaki chehra badalta na rahe.
+#
+# Ye [veo] wale "AADMI KABHI NAHI" niyam se ALAG hai - wo niyam
+# khabar/gyan ke DRISHYA ke liye hai (jahan asli ghatna ki nakli
+# tasveer dikhana galat hoga) aur waisa hi kaayam hai. Anchor ek
+# maana-hua kirdaar hai, kisi ghatna ki nakal nahi.
+#
+# Chalu karne ka aasan tareeka: Telegram par "/anchor on". Bina chalu
+# kiye bhi jhalak dekhne ke liye: "/anchor test".
+enabled = 0
+# Anchor ka apna alag kota - [veo] wale jaankari-chitran kote se takraye
+# na. Har bulletin mein 2 lagte hain (intro + outro); teeno bulletin ke
+# liye kam se kam 6 rakhiye.
+max_per_day = 6
+# Khaali chhod dijiye to [veo] wala model/location hi istemal hoga.
+model =
+location =
+# Reference tasveer banane wala model - wahi jo illustration ke liye
+# pehle se istemal ho chuka hai.
+image_model = gemini-2.5-flash-image
+
+[bulletin]
+# ROZ SHAAM KE BULLETIN - Mirzapur, Prayagraj, poora UP.
+#
+# Ek-ek khabar ki video ki jagah: din bhar ki das zaroori khabrein ek hi
+# video mein, ek hi Telegram approval ke saath. Har khabar sirf 10-15
+# second - taaki kam samay mein zyada cheezein cover ho jaayein.
+#
+# Chalu karne ka aasan tareeka: Telegram par "/bulletin on". Ye switch bhi
+# config se upar rehta hai, doosre switch (veo, social) ki tarah.
+enabled = 0
+# Har bulletin mein zyada se zyada itni khabrein.
+items = 10
+# Kis ghante (24-ghante wale, is computer/server ke apne samay mein) har
+# area ka bulletin banna shuru ho. 0 rakhne par wo area kabhi khud nahi
+# chalega. Aapne teeno ko ek-ek ghante ke antaral par rakhne ko kaha tha -
+# isliye neeche 17, 18, 19 udaharan ke roop mein diye hain; apne hisaab se
+# badal dijiye.
+hour_mirzapur = 17
+hour_prayagraj = 18
+hour_up = 19
+#
+# NOTE: Bulletin chalu karne ke baad, purani ek-khabar-ek-video wali line
+# (upar [schedule] mein news_in_every) ko dheere-dheere badha ya 0 kar
+# sakte hain - lekin pehle kuch din bulletin ko akele chala kar dekh
+# lijiye. Dono ek saath bhi chal sakte hain, koi takraav nahi hai.
+
+[paths]
+# Khaali chhod dijiye to PATH aur aam jagahon se dhoondh liya jayega.
+ffmpeg =
+# Chahein to apna licence wala music yahan de sakte hain. Khaali theek hai.
+music =
+
+[schedule]
+# Isse purani khabar chalegi hi nahi - katar se hata di jayegi.
+# Yojana ispar se bahar hai (wo khabar nahi, jaankari hai).
+story_max_age_hours = 30
+# Minute mein. Khabar dhoondhna, yojana dhoondhna, aur video banana.
+news_ingest_minutes = 120
+yojana_ingest_minutes = 120
+# "Kaam ki baat" - sehat, career, paisa, roz ke kagaz. Ye khabar nahi hai,
+# isliye kabhi purani nahi hoti aur roz ek zaroor chalti hai.
+kaam_ingest_minutes = 240
+# "Jaanne ki baat" - itihas, bhugol, aur ye cheez kaam kaise karti hai.
+gyan_ingest_minutes = 180
+# "Tech ki baat" - AI/naye-purane tech ki jaankari, khaas taur par aap apne
+# vyapar, kisi seva ya ghar ke kaam mein use kaise kar sakte hain. Ye bhi
+# khabar nahi hai, isliye kabhi purani nahi hoti.
+tech_ingest_minutes = 240
+produce_minutes = 120
+
+# KHABAR AUR JAANKARI KA ANUPAT.
+#
+# Itni video mein sirf EK khabar. Baaki jagah wo vishay lete hain jo kabhi
+# purane nahi hote. Wajah: sthaniya khabar ki apni licence wali footage
+# milti hi nahi - jab tak ANI/PTI ka subscription na aaye. Jo ek khabar
+# chalti hai wo ab zyada sakht pehre se guzarti hai (do-tihai drishya aur
+# kam se kam do sacchi tasveerein).
+#
+# 1 kar dene par har video khabar hogi (purana chaal-chalan).
+news_in_every = 5
+# Telegram par approval ka jawab kitni jaldi dekha jaye.
+approval_poll_seconds = 20
+
+# VISHAY KA CHUNAV - banane se PEHLE wala gate.
+#
+# Har video se pehle Telegram par paanch vikalp aate hain (do trending
+# khabar, teen jaankari ke vishay). Aapke button dabane ke BAAD hi lekh
+# dhoondha jaata hai aur script likhi jaati hai - isliye jo khabar chalni
+# hi nahi, uspar ek paisa nahi lagta.
+#
+# Itne minute tak jawab na aaye to program purane anupat wale niyam se
+# khud chun kar aage badh jaata hai. 0 rakhne par wo kabhi khud nahi
+# chunega aur bina aapke jawab ke koi video nahi banegi.
+offer_wait_minutes = 45
+# Un paanch vikalpon mein kitne trending khabar ke hon. Baaki jagah
+# jaankari ke vishay aur katar mein pehle se taiyar khabrein bharti hain.
+slate_news = 3
+# Do slate ke beech kam se kam itne minute. Iske bina, chuna hua vishay
+# fail hone par turant naya slate chala jaata tha - pehli raat mein har 40
+# second par ek. Har slate par Google Trends aur YouTube dono ko ek call
+# jaata hai, isliye ye rok kharch aur rate-limit dono bachati hai.
+offer_min_gap_minutes = 10
+
+# REEL (9:16) - bollywood aur viral.
+#
+# Ye do section baaki video ke UPAR chalte hain. Do Reel prati din yaani
+# har 720 minute mein ek. 0 karne par Reel banna band ho jayega.
+reels_per_day = 2
+reel_minutes = 720
+# Ek waqt mein ek hi video approval par khadi rehti hai. Agar wo sandesh
+# aapne dekha hi nahi, to poora channel wahin ruk jaata hai - abhi.bat bhi
+# kuch nahi kar paata. Itne ghante jawab na aaye to wo video chhod kar
+# aage badh jaate hain (chhodna = publish NAHI; bina aapke dabaye kuch bhi
+# channel par nahi jaata). 0 rakhne par ye seema hat jaati hai.
+approval_wait_hours = 6
+
+[limits]
+# Ek din mein itni se zyada video YouTube par nahi jayengi.
+# 5 se 7 kiya gaya: roz 2 Reel (bollywood + viral) baaki video ke UPAR
+# chalti hain, unki jagah nahi leti.
+#
+# YE SEEMA AB BANANE KE WAQT LAGTI HAI, UPLOAD KE WAQT NAHI.
+#
+# Pehle ye seema sirf upload par thi: video poori tarah ban chuki hoti,
+# Telegram se approve bhi ho chuki hoti, aur sirf isliye khadi rehti thi
+# kyunki din ki upload-ginti poori ho chuki thi - aksar raat paar karke
+# agle din upload hoti, aur "aaj ki khabar" tab tak ek din purani ho chuki
+# hoti thi. Ab isi ginti ka hisaab BANANE se PEHLE lagaya jaata hai
+# (sy_main.py ka production_allowed()) - seema poori ho to naya, ghadi-
+# anusaar video BANTA hi nahi, isliye jo bhi ban chuka hai wo usi din
+# chadhta hai. Bulletin aur /khabar se manga hua vishay isse kabhi nahi
+# rukte - unke liye jagah pehle se aarakshit rehti hai.
+#
+# 0 (ya usse kam) rakhne par ye seema POORI TARAH HAT JAATI HAI - production
+# kabhi is wajah se nahi rukega. Harshvardhan ki apni maang par 0 kiya gaya
+# hai (har 2 ghante video, produce_minutes dekhiye).
+#
+# YAAD RAHE - YE HAMARI APNI SEEMA HAI, GOOGLE KI NAHI. YouTube Data API ka
+# apna, alag kota hota hai (ek naye/chhote project par aksar ~10,000 unit/
+# din, aur ek upload ~1600 unit leta hai - yaani lagbhag 6 upload/din ki
+# apni hi ek DEEWAAR, hamare code se bahar). Hamari seema hatane se Google
+# ki seema nahi hatti - agar din mein isse zyada video ban gayin to kuch
+# upload us DIN nahi ho paayenge (RateLimited, sy_youtube.py), aur wo agli
+# khaali baari mein khud chali jayengi. Zyada chahiye to Google Cloud
+# Console mein YouTube Data API v3 ka quota badhaane ki darkhwaast di ja
+# sakti hai.
+max_uploads_per_day = 0
+
+# Katar mein isse zyada khabrein hui to nayi dhoondhna band. Ye katar ko
+# taaza rakhta hai aur un khabron par paisa bachata hai jo kabhi chalti hi
+# nahi. Ise badhane se katar lambi aur purani ho jayegi.
+max_pending = 4
+# Do upload ke beech kam se kam itne minute. YouTube ek saath kai upload
+# par "too many requests" de deta hai - yahi wo samasya thi. (Din bhar ki
+# GINTI ki seema upar wale max_uploads_per_day se lagti hai, ab banane ke
+# waqt - ye sirf do upload ke BEECH ka faasla hai.)
+min_minutes_between_uploads = 20
