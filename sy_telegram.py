@@ -206,9 +206,18 @@ def ensure_polling():
     Purane, bina padhe update bhi gira dete hain: wo n8n ke zamane ke hain
     aur unpar ab koi kaam nahi karna.
     """
+    # CLOUD PAR BINA PADHE UPDATE KABHI NAHI GIRANE.
+    #
+    # Laptop par ye program din mein ek-aadh baar chalu hota tha, isliye
+    # purane update girana theek tha. Cloud par har run (~20 minute) ek
+    # nayi shuruaat hai - aur do run ke beech dabaya gaya har button (video
+    # ka approval bhi) yahin mit jaata tha. Jo padh liya gaya hai wo
+    # database ke tg_offset se waise bhi dobara nahi aata.
+    drop = "false" if cfg.CLOUD else "true"
     try:
-        _post("deleteWebhook", {"drop_pending_updates": "true"}, timeout=30)
-        log("purana webhook hata diya")
+        _post("deleteWebhook", {"drop_pending_updates": drop}, timeout=30)
+        log("webhook hataya (purane update %s)"
+            % ("rakhe" if cfg.CLOUD else "giraye"))
         return True
     except Exception as e:
         log("webhook nahi hata:", e)
