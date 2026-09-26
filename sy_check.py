@@ -332,18 +332,29 @@ def check_youtube():
     if cfg.CLOUD:
         # Cloud par browser nahi - sirf "TV/limited input" wala client chalta
         # hai, aur sign-in Telegram se hota hai.
+        have = []
+        try:
+            cfg.youtube_client()
+            have.append("laptop wala (JSON)")
+        except cfg.ConfigError:
+            pass
         try:
             import sy_youtube
             sy_youtube.device_client()
-            line(OK, "YouTube device client")
+            have.append("TV/device")
         except Exception:
-            line(BAD, "YouTube device client",
-                 "YOUTUBE_DEVICE_CLIENT_ID / _SECRET secret bhariye")
-            problems.append("YouTube device client nahi mila")
-        if os.path.exists(cfg.YT_TOKEN):
-            line(OK, "YouTube sign-in", "ho chuka hai")
+            pass
+        if have:
+            line(OK, "YouTube client", ", ".join(have))
         else:
-            line(WARN, "YouTube sign-in", "agli run Telegram par code bhejegi")
+            line(BAD, "YouTube client",
+                 "YOUTUBE_CLIENT_SECRET_JSON secret bhariye (CLOUD.md)")
+            problems.append("YouTube client nahi mila")
+        if os.path.exists(cfg.YT_TOKEN):
+            line(OK, "YouTube sign-in", "token maujood hai")
+        else:
+            line(WARN, "YouTube sign-in",
+                 "YOUTUBE_TOKEN_JSON secret bhariye (laptop ki youtube-token.json)")
         return
     try:
         cfg.youtube_client()

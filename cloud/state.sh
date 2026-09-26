@@ -62,7 +62,7 @@ state_files() {
     | tr '\0' '\n' \
     | grep -Ev '^(work|output|veo_clips|\.sy-cache)/' \
     | grep -Ev '(^|/)__pycache__/' \
-    | grep -Ev '^(config\.ini|satyayatra-sa\.json)$' \
+    | grep -Ev '^(config\.ini|satyayatra-sa\.json|client_secret[^/]*\.json)$' \
     | grep -Ev '\.(log|db-wal|db-shm)$' \
     || true
 }

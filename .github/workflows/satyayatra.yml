@@ -92,14 +92,32 @@ jobs:
         id: unpack
         run: cloud/state.sh unpack
 
-      - name: config.ini aur service account
+      - name: config.ini, service account aur YouTube
         env:
           GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
+          YT_CLIENT_JSON: ${{ secrets.YOUTUBE_CLIENT_SECRET_JSON }}
+          YT_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
         run: |
           cp config.cloud.ini config.ini
           umask 077
           if [ -n "$GCP_SA_JSON" ]; then
             printf '%s' "$GCP_SA_JSON" > satyayatra-sa.json
+          fi
+          # Laptop wali Google ki client_secret_*.json - wahi jisse laptop
+          # par YouTube chalta tha.
+          if [ -n "$YT_CLIENT_JSON" ]; then
+            printf '%s' "$YT_CLIENT_JSON" > client_secret_cloud.json
+          fi
+          # Laptop ka youtube-token.json. Sirf tab lagta hai jab hisaab mein
+          # token na ho, ya Secret NAYA daala gaya ho (uska hash badla ho) -
+          # warna run ke beech taaza hua token purane Secret se na mite.
+          if [ -n "$YT_TOKEN_JSON" ]; then
+            h="$(printf '%s' "$YT_TOKEN_JSON" | sha256sum | cut -c1-16)"
+            if [ ! -f youtube-token.json ] || [ "$(cat youtube-token.seed 2>/dev/null)" != "$h" ]; then
+              printf '%s' "$YT_TOKEN_JSON" > youtube-token.json
+              echo "$h" > youtube-token.seed
+              echo "YouTube token Secret se lagaya"
+            fi
           fi
 
       - name: SatyaYatra

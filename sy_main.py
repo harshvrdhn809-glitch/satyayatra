@@ -1506,6 +1506,21 @@ def _ask_signin():
     try:
         sy_youtube.device_client()
     except Exception:
+        if cfg.CLOUD:
+            try:
+                sy_telegram.send_message(
+                    "<b>YouTube sign-in khatam ho gaya</b>\n\n"
+                    "Laptop par ek baar <code>signin.bat</code> chalaiye. "
+                    "Phir nayi <code>youtube-token.json</code> ka poora "
+                    "text GitHub par satyayatra repo ke Secret "
+                    "<code>YOUTUBE_TOKEN_JSON</code> mein daal dijiye - "
+                    "agli run use utha legi aur ruki hui video chali "
+                    "jayegi.\n\n"
+                    "Bina laptop ke karna ho to CLOUD.md ka 'TV client' "
+                    "wala tareeka dekhiye - tab ye phone se hota hai.")
+            except Exception:
+                pass
+            return
         try:
             sy_telegram.send_message(
                 "<b>YouTube sign-in khatam ho gaya</b>\n\n"

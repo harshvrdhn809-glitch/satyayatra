@@ -45,11 +45,32 @@ SatyaYatra ka bot **alag** hona chahiye. Program shuru hote hi bot ka
 webhook hata deta hai. Wahi bot Camp Kelang ke Netlify listener par laga
 ho to GBP ke Approve/Reject button kaam karna band kar denge.
 
-### 2. YouTube ka "TV" client
+### 2. YouTube — laptop wali do files
 
-Google Cloud Console → APIs & Services → Credentials → Create Credentials
-→ OAuth client ID → **TVs and Limited Input devices**. Iska `client_id` aur
-`client_secret` Secrets mein jaata hai (neeche dekhiye).
+Laptop par YouTube do files se chalta hai. Dono ka poora text Secrets mein
+jaata hai (Notepad mein kholiye, sab copy kijiye, Secret mein paste kijiye):
+
+| laptop ki file (`C:\SatyaYatra\`) | Secret |
+|---|---|
+| `client_secret_....json` (Google Cloud se download ki hui) | `YOUTUBE_CLIENT_SECRET_JSON` |
+| `youtube-token.json` | `YOUTUBE_TOKEN_JSON` |
+
+Bas itna. Cloud ussi token se chalega, naya sign-in nahi chahiye.
+
+**Har 7 din:** Google ki OAuth app abhi "Testing" mein hai, isliye token
+har 7 din mein bekaar ho jaata hai (laptop par bhi yahi hota tha). Tab
+Telegram par sandesh aayega. Laptop par `signin.bat` chalaiye, aur nayi
+`youtube-token.json` ka text `YOUTUBE_TOKEN_JSON` Secret mein **dobara
+daal dijiye**. Agli run naya token utha legi. Secret ka text badalte hi
+wo purane token ki jagah lag jaata hai.
+
+**Bina laptop ke (vaikalpik) - "TV" client:** Google Cloud Console →
+APIs & Services → Credentials → Create Credentials → OAuth client ID →
+**TVs and Limited Input devices**. Iska `client_id` aur `client_secret`
+`YOUTUBE_DEVICE_CLIENT_ID` / `YOUTUBE_DEVICE_CLIENT_SECRET` Secrets mein
+daaliye, aur Telegram par `/signin` likhiye. Program Telegram par ek code
+bhejega, aap phone par daal denge. Uske baad har 7 din wala sign-in bhi
+phone se hi hoga.
 
 ### 3. STATE_KEY banaiye
 
@@ -75,8 +96,9 @@ Repo → Settings → Secrets and variables → Actions → New repository secre
 | `ELEVENLABS_API_KEY` | * | aawaaz, agar `config.cloud.ini` mein `[tts] provider = elevenlabs` |
 | `SATYAYATRA_TELEGRAM_BOT_TOKEN` | **haan** | SatyaYatra bot (alag bot!) |
 | `SATYAYATRA_TELEGRAM_CHAT_ID` | **haan** | aapki chat ka number |
-| `YOUTUBE_DEVICE_CLIENT_ID` | **haan** | TV client (kadam 2) |
-| `YOUTUBE_DEVICE_CLIENT_SECRET` | **haan** | TV client (kadam 2) |
+| `YOUTUBE_CLIENT_SECRET_JSON` | **haan** | laptop ki `client_secret_....json` ka text (kadam 2) |
+| `YOUTUBE_TOKEN_JSON` | **haan** | laptop ki `youtube-token.json` ka text (kadam 2) |
+| `YOUTUBE_DEVICE_CLIENT_ID`, `YOUTUBE_DEVICE_CLIENT_SECRET` | nahi | sirf phone se sign-in ke liye (kadam 2) |
 | `CONTACT_EMAIL` | **haan** | Wikimedia ke liye pehchaan; iske bina Commons band |
 | `PEXELS_API_KEY` | sujhaav | chalti footage |
 | `PIXABAY_API_KEY` | nahi | ek aur stock source |
@@ -94,17 +116,15 @@ Actions → SatyaYatra → Run workflow → `mode = check`.
 `sy_check.py` chalega: sab hara hona chahiye. YouTube sign-in par "dhyaan"
 aana theek hai.
 
-### 6. Pehli run aur YouTube sign-in
+### 6. Laptop band, phir pehli run
 
-Actions → SatyaYatra → Run workflow → `mode = run`. Ya agli 20 minute
+**Cloud chalu karne se PEHLE laptop wala SatyaYatra band kijiye** (window
+band, Task Scheduler se bhi hata dijiye). Dono ek saath chale to dono ek
+hi Telegram bot se sandesh kheenchenge. Tab ek ka button doosre ko milega,
+aur ek hi khabar do baar ban ya chadh sakti hai.
+
+Phir Actions → SatyaYatra → Run workflow → `mode = run`. Ya agli 20 minute
 wali run ka intezaar kar lijiye.
-
-Token na hone par pehli run Telegram par ek safha aur code bhejti hai.
-Phone par code daaliye aur ijaazat dijiye. Run tab tak (~28 minute) rukti
-hai. Chook gaye to Telegram par `/signin` likhiye.
-
-OAuth app "Testing" mein hai, isliye ye sign-in har 7 din mein phir
-maanga jayega.
 
 ---
 
