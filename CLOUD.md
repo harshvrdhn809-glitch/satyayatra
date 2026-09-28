@@ -137,8 +137,11 @@ wali run ka intezaar kar lijiye.
 - **Bani hui video 2 din rakhi jaati hai** (`keep_output_days`). Jo video
   approval ya upload ka intezaar kar rahi hai, wo run ke beech cache mein
   rehti hai.
-- **Laptop ka purana `satyayatra.db` saath nahi aata.** Cloud nayi
-  shuruaat se chalta hai.
+- **Laptop ka purana hisaab:** laptop wala program band karke
+  `C:\SatyaYatra\satyayatra.db` file Telegram par bot ko (file ke roop
+  mein) bhej dijiye. Agli run use padh kar jod leti hai - laptop par ban
+  chuke vishay aur khabrein phir dobara nahi banti. Dobara bhejne se kuch
+  nahi bigadta.
 - **Kuch sites GitHub ke server ko rok sakti hain.** Google Trends ya kuch
   news sites datacentre wali requests par 429 ya block de sakti hain. Aisa
   hua to log mein "nahi khula" dikhega, aur program doosre srot se kaam
