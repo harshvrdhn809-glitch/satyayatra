@@ -86,7 +86,11 @@ def build_job(story, shots=None, credits=None, cuts=None, timing=None):
         "lang": "hi",
         "headline": str(story.get("lower_third_hi")
                         or story.get("headline_hi") or "")[:140],
-        "sourceLine": source_line(story),
+        # Reporter ki khabar par screen par sirf "SatyaYatra संवाददाता" -
+        # unka naam YouTube description mein jaata hai (attribution_line).
+        "sourceLine": ("स्रोत: SatyaYatra संवाददाता"
+                       if str(story.get("beat") or "") == "report"
+                       else source_line(story)),
         "dateStr": date_hindi(),
         "category": story.get("category") or "politics",
         "style": story.get("style") or "grid",
@@ -239,7 +243,7 @@ def attribution_count(story):
 
 # Jin sources ki tasveer US CHEEZ ki hoti hai jiski khabar hai.
 # Pexels/Pixabay isme nahi - wo prateekatmak hai, us ghatna ki nahi.
-REAL_SOURCES = ("commons", "commons_video", "openverse")
+REAL_SOURCES = ("commons", "commons_video", "openverse", "reporter")
 
 # Ye beat khabar nahi hain, isliye inpar narmi hai.
 #
@@ -346,8 +350,13 @@ def visual_verdict(story, shots, photo_source=""):
 
 
 def asked_by_you(story_id):
-    """/khabar se aapki maangi khabar? (sy_main.do_khabar "mera_" id deta hai)"""
-    return str(story_id or "").startswith("mera_")
+    """/khabar se aapki maangi khabar? (sy_main.do_khabar "mera_" id deta hai)
+
+    Reporter ki bheji khabar ("rep_", sy_report.py) bhi isi mein ginti hai -
+    use channel ne khud mangaya hai, ahmiyat ya tasveer kam hone par wo
+    nahi rukti."""
+    sid = str(story_id or "")
+    return sid.startswith("mera_") or sid.startswith("rep_")
 
 
 def produce(story):
@@ -406,6 +415,14 @@ def produce(story):
             if shots:
                 story["shots"] = json.dumps(shots, ensure_ascii=False)
                 st.update(sid, shots=story["shots"])
+
+        # REPORTER KI KHABAR - uski apni video/photo Drive se, script ki
+        # sahi baat par (sy_report.py). Bache tukde neeche fetch_shots se
+        # pehle jaise Commons/Pexels/studio par.
+        if str(story.get("beat") or "") == "report":
+            import sy_report
+            log("reporter ki files...")
+            sy_report.prepare_shots(story, workdir)
 
         # Jaankari video mein jin tukdon ka asli drishya na mile, unmein se
         # kuch anchor khud bolegi (sy_explainer) - unpar AI chitran ka paisa
@@ -477,6 +494,12 @@ def produce(story):
                 + "\n\nKhabar wahi chalti hai jise theek se dikhaya ja sake.")
             return False
         story["visual_line"] = vline
+        if str(story.get("beat") or "") == "report":
+            try:
+                import sy_report
+                story["visual_line"] = vline + "\n" + sy_report.approval_note(story)
+            except Exception as e:
+                log("reporter note nahi bana:", e)
 
         # Akhbaar ka naam script mein se hata do - aawaaz banne se PEHLE,
         # kyunki wahi script boli bhi jaati hai aur screen par bhi dikhti
@@ -549,6 +572,17 @@ def produce(story):
             render_core.set_intro_mode(False)
         if not os.path.exists(out) or os.path.getsize(out) < 100000:
             raise RuntimeError("video bani hi nahi")
+
+        # BAYAN - ASLI AAWAAZ MEIN. Reporter ki "bayan wali video" script ke
+        # bayan_intro vaakya ke theek baad judti hai; us waqt anchor ki
+        # aawaaz ruki rehti hai. Na jud paaye to video bina uske hi aage.
+        if str(story.get("beat") or "") == "report" and story.get("_bayan_seg"):
+            try:
+                import sy_report
+                out = sy_report.insert_bayan(story, out, workdir, timing,
+                                             render_core.LEAD)
+            except Exception as e:
+                log("bayan nahi juda (bina uske aage):", e)
 
         # AI ANCHOR - sirf bulletin par, aur sirf yahan se aage kuch bhi
         # gadbad ho to bina anchor ke wahi purani video chali jaati hai.
@@ -624,6 +658,10 @@ def produce(story):
         st.update(sid, video_path=out, thumb_path=thumb_path, seconds=total)
         story["seconds"] = total
 
+        if str(story.get("beat") or "") == "report":
+            import sy_report
+            sy_report.cleanup(workdir)
+
         log("Telegram par bhej rahe hain (%.1f MB)"
             % (os.path.getsize(out) / 1048576.0))
         mid = sy_telegram.send_video_for_approval(story, out, thumb_path)
@@ -634,6 +672,12 @@ def produce(story):
     except Exception as e:
         log("GADBAD:", e)
         st.update(sid, status="failed", error=str(e)[:400])
+        if str(story.get("beat") or "") == "report":
+            try:
+                import sy_report
+                sy_report.cleanup(workdir)
+            except Exception:
+                pass
         try:
             sy_telegram.send_message(
                 "<b>Video nahi ban payi</b>\n\n"

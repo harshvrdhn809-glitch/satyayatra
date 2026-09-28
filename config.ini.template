@@ -303,6 +303,31 @@ hour_up = 19
 # sakte hain - lekin pehle kuch din bulletin ko akele chala kar dekh
 # lijiye. Dono ek saath bhi chal sakte hain, koi takraav nahi hai.
 
+[report]
+# REPORTER KI KHABAR - GOOGLE FORM SE (sy_report.py, REPORTER_FORM.md).
+#
+# Reporter phone ke browser mein ek Google Form bharta hai (khabar, jagah,
+# bayan, video/photo). Jawab Google Sheet mein aur files Drive mein jaati
+# hain. Program har kuch minute Sheet padhta hai; nayi line par sirf form
+# ki baat se script banti hai aur video sabse aage ki baari mein banti hai
+# (/khabar jaisi). Sheet mein "SatyaYatra स्थिति" column mein har line ki
+# haalat likhi jaati hai. Approval, YouTube, Facebook - sab pehle jaisa.
+#
+# Sheet ki id YAHAN MAT LIKHIYE - ye file sabko dikhti hai. Cloud par
+# REPORT_SHEET_ID Secret se aati hai (CLOUD.md). Khaali = ye hissa band.
+# Chaabi wahi service account (satyayatra-sa.json / GCP_SA_JSON) hai.
+sheet_id =
+# 0 = band (Sheet id hone par bhi).
+enabled = 1
+# Kitne minute mein ek baar Sheet dekhein.
+check_minutes = 5
+# Form ka tab. Khaali = apne aap (Form wala / pehla tab).
+sheet_tab =
+# Isse badi ek file nahi utregi (MB). Form mein bhi yahi seema rakhiye.
+max_file_mb = 1000
+# Bayan wali video (asli aawaaz) isse lambi ho to yahan tak, kisi chuppi par.
+bayan_max_seconds = 45
+
 [paths]
 # Khaali chhod dijiye to PATH aur aam jagahon se dhoondh liya jayega.
 ffmpeg =

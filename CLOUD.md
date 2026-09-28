@@ -104,6 +104,7 @@ Repo → Settings → Secrets and variables → Actions → New repository secre
 | `PIXABAY_API_KEY` | nahi | ek aur stock source |
 | `GCP_SA_JSON` | nahi | Veo/Vertex service account — poori JSON file ka text |
 | `FB_PAGE_ID`, `FB_TOKEN`, `IG_USER_ID`, `GCS_BUCKET` | nahi | Facebook/Instagram (SOCIAL.md) |
+| `REPORT_SHEET_ID` | nahi | reporter wale Google Form ki Sheet ki id (REPORTER_FORM.md). Iske saath `GCP_SA_JSON` bhi chahiye |
 
 \* Sarvam ya ElevenLabs, dono mein se ek.
 
@@ -125,6 +126,17 @@ aur ek hi khabar do baar ban ya chadh sakti hai.
 
 Phir Actions → SatyaYatra → Run workflow → `mode = run`. Ya agli 20 minute
 wali run ka intezaar kar lijiye.
+
+---
+
+## Reporter ka Google Form (vaikalpik)
+
+Kam padhe-likhe reporter bhi phone ke browser se khabar aur video bhej
+sakein - Google Form -> Sheet + Drive, program har 5 minute Sheet padh kar
+video banata hai aur Sheet mein haalat likhta hai. Form banana, Sheet/Drive
+share karna, Sheets + Drive API chalu karna aur `REPORT_SHEET_ID` Secret -
+sab kram se **REPORTER_FORM.md** mein. Reporter ki badi video render ke
+baad `work/` se mit jaati hai, isliye media cache nahi phoolta.
 
 ---
 

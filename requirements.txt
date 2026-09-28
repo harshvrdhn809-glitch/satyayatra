@@ -2,3 +2,6 @@
 pillow
 truststore
 PyJWT[crypto]
+# Reporter ki video mein chehre dhundhle karne ke liye (sy_report.py). 5.x mein
+# chehre wala detector (CascadeClassifier) nahi hai - isliye 4.x.
+opencv-python-headless<5

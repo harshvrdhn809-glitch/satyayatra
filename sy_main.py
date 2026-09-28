@@ -158,6 +158,26 @@ def tick_bulletin():
         return
 
 
+def tick_report():
+    """Reporter ki Google Form wali khabar (sy_report.py, REPORTER_FORM.md).
+
+    Nayi line -> sampadak sirf form ki baat se script likhta hai -> khabar
+    FORCE_KEY se sabse aage, bilkul /khabar jaisi: na ghadi ka intezaar,
+    na din ki seema. Sheet ki har line mein uski haalat bhi yahin likhi
+    jaati hai. [report] sheet_id khaali ho to ye kadam kuch nahi karta.
+    """
+    try:
+        import sy_report
+    except Exception as e:
+        log("sy_report load nahi hua:", e)
+        return
+    for sid in sy_report.tick() or []:
+        _force_add(sid)
+        # Chunav ka lataka hua sandesh reporter ki khabar ko na roke.
+        st.kv_set(OFFER_KEY, None)
+        st.kv_set(OFFER_CHOSEN, None)
+
+
 def tick_ingest():
     # Internet hi na ho to feeds tatolne ka koi matlab nahi - aur us khaali
     # koshish par ghadi chhap gayi to agli baari poore do ghante baad aati
@@ -1730,7 +1750,7 @@ def one_round():
     # tick_offer, tick_produce se PEHLE: pehle vishay ka chunav aapke
     # paas jaata hai, aur jawab aane tak tick_produce khud ruk jaata
     # hai (wahan OFFER_KEY ki jaanch hai).
-    for step in (tick_decisions, tick_commands, tick_bulletin,
+    for step in (tick_decisions, tick_commands, tick_bulletin, tick_report,
                  tick_ingest, tick_offer, tick_produce, tick_upload):
         try:
             step()

@@ -23,7 +23,9 @@ import urllib.request
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 
-_token_cache = {"token": "", "expires": 0}
+# Har scope ka apna token - Vertex (cloud-platform) aur reporter wali
+# Sheet/Drive (sy_report.py) ek hi service account se, alag scope ke saath.
+_token_cache = {}
 
 
 def _log(*a):
@@ -40,17 +42,18 @@ def available(sa_path):
     return True, ""
 
 
-def _access_token(sa):
-    """Ek ghante ka token, cache ke saath."""
+def _access_token(sa, scope=SCOPE):
+    """Ek ghante ka token, cache ke saath (har scope ka alag)."""
     now = int(time.time())
-    if _token_cache["token"] and _token_cache["expires"] - 60 > now:
-        return _token_cache["token"]
+    got = _token_cache.get(scope) or {}
+    if got.get("token") and got.get("expires", 0) - 60 > now:
+        return got["token"]
 
     import jwt
 
     claims = {
         "iss": sa["client_email"],
-        "scope": SCOPE,
+        "scope": scope,
         "aud": TOKEN_URL,
         "iat": now,
         "exp": now + 3600,
@@ -68,9 +71,9 @@ def _access_token(sa):
     with urllib.request.urlopen(req, timeout=60) as r:
         out = json.loads(r.read().decode("utf-8"))
 
-    _token_cache["token"] = out["access_token"]
-    _token_cache["expires"] = now + int(out.get("expires_in", 3600))
-    return _token_cache["token"]
+    _token_cache[scope] = {"token": out["access_token"],
+                           "expires": now + int(out.get("expires_in", 3600))}
+    return out["access_token"]
 
 
 def _find_b64(node, depth=0):

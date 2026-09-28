@@ -392,6 +392,39 @@ def check_renderer():
             problems.append(mod + ".py nahi chala")
 
 
+def check_report():
+    """Reporter wala Google Form (sy_report.py) - Sheet id ho tabhi."""
+    try:
+        import sy_report
+    except Exception as e:
+        line(BAD, "sy_report.py", str(e))
+        problems.append("sy_report.py nahi chala")
+        return
+    if not sy_report.enabled():
+        line(OK, "reporter form", "band (Sheet id nahi) - REPORTER_FORM.md")
+        return
+    who = sy_report.sa_email() or "?"
+    try:
+        headers, rows = sy_report.read_sheet()
+        hmap = sy_report.map_headers(headers)
+        miss = [k for k in ("naam", "ek_line", "kya_hua", "ghatna_video")
+                if k not in hmap.values()]
+        line(OK, "reporter Sheet", "%d jawab, tab '%s'" % (len(rows), sy_report.sheet_tab()))
+        if miss:
+            line(WARN, "reporter Sheet ke sawal", "ye nahi pehchane: " + ", ".join(miss))
+            warnings.append("reporter form ke sawal REPORTER_FORM.md jaise nahi")
+    except Exception as e:
+        line(BAD, "reporter Sheet", str(e)[:200])
+        problems.append("reporter Sheet nahi khuli - Sheet aur Drive folder %s "
+                        "ke saath share kijiye, Sheets + Drive API chalu kijiye" % who)
+    try:
+        import cv2  # noqa: F401
+        line(OK, "OpenCV (chehra dhundhla)")
+    except Exception:
+        line(WARN, "OpenCV nahi", "chehra chhupana ho to poora frame dhundhla hoga")
+        warnings.append("opencv-python-headless nahi hai")
+
+
 def main():
     print("SatyaYatra - jaanch")
     print("folder:", cfg.HERE)
@@ -410,6 +443,7 @@ def main():
     print()
     check_store()
     check_renderer()
+    check_report()
     print()
     if problems:
         print("ROKNE WALI CHEEZEIN (%d):" % len(problems))

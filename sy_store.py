@@ -352,6 +352,10 @@ def expire_stale(max_age_hours, beats=None):
         beat = str(row.get("beat") or "")
         if beat in TIMELESS:
             continue
+        # Reporter ki bheji khabar (sy_report) apne aap purani nahi hoti -
+        # wo aapke apne aadmi ki zameeni khabar hai, aur sabse aage lagti hai.
+        if beat == "report":
+            continue
         if beats and beat not in beats:
             continue
         if age_hours(row) > max_age_hours:

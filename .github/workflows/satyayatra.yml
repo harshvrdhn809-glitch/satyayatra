@@ -137,6 +137,8 @@ jobs:
           SY__SOCIAL__FB_TOKEN: ${{ secrets.FB_TOKEN }}
           SY__SOCIAL__IG_USER_ID: ${{ secrets.IG_USER_ID }}
           SY__SOCIAL__GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
+          # Reporter wali Google Sheet ki id (sy_report.py, REPORTER_FORM.md)
+          SY__REPORT__SHEET_ID: ${{ secrets.REPORT_SHEET_ID }}
         run: |
           if [ "${{ inputs.mode }}" = "check" ]; then
             python sy_check.py
