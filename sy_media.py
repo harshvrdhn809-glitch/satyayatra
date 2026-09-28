@@ -1337,6 +1337,12 @@ def fetch_shots(story, workdir, anchor_slots=0):
     anchor_left = int(anchor_slots or 0)
     got = 0
     for i, sh in enumerate(shots):
+        # Reporter ki apni file pehle se lagi hai (sy_report.prepare_shots) -
+        # wo is khabar ki SACCHI footage hai, uspar koi khoj nahi.
+        if sh.get("reporter") and sh.get("file") and \
+                os.path.exists(os.path.join(workdir, sh["file"])):
+            got += 1
+            continue
         sh["file"] = ""
         sh["credit"] = ""
         sh["source"] = ""
