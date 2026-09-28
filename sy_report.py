@@ -993,6 +993,10 @@ def download_media(rec, rawdir):
     media = []
     for role, field in (("ghatna", "ghatna_video"), ("bayan", "bayan_video"),
                         ("photo", "photo")):
+        # Bayan dene wale ki ijaazat na ho to unki video kahin nahi - na
+        # aawaaz ke saath, na chup b-roll mein.
+        if role == "bayan" and not yes(rec.get("ijazat")):
+            continue
         for fid in drive_ids(rec.get(field)):
             if len(media) >= MAX_MEDIA:
                 break
@@ -1105,7 +1109,7 @@ def approval_note(story):
     if drive_ids(rec.get("bayan_video")) and not yes(rec.get("ijazat")):
         bits.append("bayan ki video ijaazat ke bina thi - nahi lagayi")
     elif info.get("bayan_intro") and not story.get("_bayan_seg"):
-        bits.append("bayan ki video nahi lag paayi")
+        bits.append("bayan ki video nahi ban paayi")
     return " | ".join(bits)
 
 
@@ -1136,12 +1140,230 @@ def cleanup(workdir):
 
 # --------------------------------------------- bayan - asli aawaaz ke saath
 #
-# Hissa 2 (neeche, alag commit mein bhara gaya). Yahan sirf naam hain taaki
-# upar ka kaam bina iske bhi chale.
+# Reporter ki "bayan wali video" b-roll nahi hai - usme kisi adhikari/vyakti
+# ki apni aawaaz hai, aur wahi sabse sacchi cheez hai jo hum dikha sakte
+# hain. Isliye wo apni aawaaz ke saath chalti hai:
+#
+#   script: "... इस बारे में थाना प्रभारी रमेश कुमार ने क्या कहा, सुनिए।"
+#   -> anchor ki aawaaz yahin rukti hai, bayan ki video (unki aawaaz,
+#      neeche naam-pad ki patti) chalti hai -> phir anchor aage padhta hai.
+#
+# Sirf tab jab form mein ijaazat wala dabba tick ho (bayan_video_ok), aur
+# sampadak ne bayan_intro vaakya diya ho. Kuch bhi gadbad ho to video bina
+# bayan ke hi aage jaati hai - bayan kabhi poori video ko nahi girata.
+
+def bayan_max_seconds():
+    return max(5, cfg.num("report", "bayan_max_seconds", 45))
+
+
+def _silences(path, noise=-34, dur=0.15):
+    try:
+        out = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-nostats", "-i", path, "-vn",
+             "-af", "silencedetect=noise=%ddB:d=%.2f" % (noise, dur),
+             "-f", "null", "-"],
+            capture_output=True, text=True, timeout=300)
+    except Exception:
+        return []
+    txt = out.stderr or ""
+    starts = [float(x) for x in re.findall(r"silence_start:\s*(-?[\d.]+)", txt)]
+    ends = [float(x) for x in re.findall(r"silence_end:\s*([\d.]+)", txt)]
+    return list(zip(starts, ends))
+
+
+def bayan_end(dur, silences, cap):
+    """Bayan kahan tak chale: poora, ya cap se pehle ki aakhri chuppi par
+    (vaakya beech mein na kate). Chuppi na mile to cap par."""
+    if dur <= cap + 0.5:
+        return dur
+    best = None
+    for s0, _e in silences:
+        if cap * 0.6 <= s0 <= cap:
+            best = s0
+    return round((best + 0.15) if best else cap, 2)
+
+
+def _ass_time(t):
+    t = max(0.0, t)
+    return "%d:%02d:%05.2f" % (int(t // 3600), int(t % 3600 // 60), t % 60)
+
+
+def _ass_esc(t):
+    return str(t or "").replace("\\", "").replace("{", "(").replace("}", ")").replace("\n", " ")
+
+
+def lower_third_ass(name, pad, dur, path):
+    """Naam-pad ki patti - pehle 7 second (ya bayan chhota ho to poore)."""
+    end = min(dur, 7.0)
+    lines = [
+        "[Script Info]", "ScriptType: v4.00+", "PlayResX: %d" % W, "PlayResY: %d" % H, "",
+        "[V4+ Styles]",
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
+        "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
+        "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
+        "Alignment, MarginL, MarginR, MarginV, Encoding",
+        # Laal patti par safed naam, neeche kaali patti par pad.
+        "Style: N,Noto Sans Devanagari,54,&H00FFFFFF,&H00FFFFFF,&H001A1AB4,"
+        "&H001A1AB4,1,0,0,0,100,100,0,0,3,14,0,1,90,90,190,1",
+        "Style: P,Noto Sans Devanagari,38,&H00FFFFFF,&H00FFFFFF,&H00141414,"
+        "&H00141414,0,0,0,0,100,100,0,0,3,12,0,1,90,90,110,1",
+        "Style: T,Noto Sans Devanagari,30,&H00FFFFFF,&H00FFFFFF,&H001A1AB4,"
+        "&H001A1AB4,1,0,0,0,100,100,0,0,3,8,0,7,60,60,50,1",
+        "", "[Events]",
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+        # Poore bayan par chhota "बयान" nishan - darshak jaane ye asli aawaaz hai.
+        "Dialogue: 0,%s,%s,T,,0,0,0,,बयान" % (_ass_time(0), _ass_time(dur)),
+    ]
+    if name:
+        lines.append("Dialogue: 1,%s,%s,N,,0,0,0,,{\\fad(250,250)}%s"
+                     % (_ass_time(0.3), _ass_time(end), _ass_esc(name)[:60]))
+    if pad:
+        lines.append("Dialogue: 1,%s,%s,P,,0,0,0,,{\\fad(250,250)}%s"
+                     % (_ass_time(0.3), _ass_time(end), _ass_esc(pad)[:80]))
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    return path
+
+
+def _split_bayan_kaun(text):
+    """Form ka "सुरेश कुमार, थाना प्रभारी" -> (naam, pad)."""
+    parts = [p.strip() for p in re.split(r"[,،\-–—(]", str(text or ""), maxsplit=1)]
+    name = parts[0] if parts else ""
+    pad = parts[1].rstrip(")").strip() if len(parts) > 1 else ""
+    return name, pad
+
 
 def build_bayan_segment(m, info, workdir, faces):
-    return ""
+    """workdir/bayan_seg.mp4 - 1920x1080, asli aawaaz (barabar kiya hua),
+    naam-pad ki patti. Path, ya "" agar nahi bani."""
+    rec = info.get("rec") or {}
+    name = info.get("bayan_name") or ""
+    pad = info.get("bayan_pad") or ""
+    if not name:
+        name, pad2 = _split_bayan_kaun(rec.get("bayan_kaun"))
+        pad = pad or pad2
+    src = m["src"]
+    dur = bayan_end(float(m.get("dur") or 0), _silences(src, -30, 0.35),
+                    bayan_max_seconds())
+    if dur < 2.0:
+        return ""
+    a = os.path.join(workdir, "bayan_a.mp4")
+    subprocess.run(
+        ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+         "-t", "%.3f" % dur, "-i", src,
+         "-filter_complex", "[0:v]" + fill_filter() + ",fps=%d[v]" % FPS,
+         "-map", "[v]", "-map", "0:a:0",
+         "-c:v", "libx264", "-preset", "veryfast", "-crf", "19",
+         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", a],
+        check=True, timeout=900)
+    if faces:
+        b = os.path.join(workdir, "bayan_b.mp4")
+        blur_faces_video(a, b, audio_from=a)
+        a = b
+    ass = lower_third_ass(name, pad, dur, os.path.join(workdir, "bayan.ass"))
+    out = os.path.join(workdir, "bayan_seg.mp4")
+    subprocess.run(
+        ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", a,
+         "-vf", "ass=%s,format=yuv420p" % os.path.basename(ass),
+         # Phone ki aawaaz aksar dheemi/oonchi hoti hai - anchor ke barabar.
+         "-af", "loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,"
+                "afade=t=in:st=0:d=0.12,afade=t=out:st=%.2f:d=0.2" % max(0.0, dur - 0.2),
+         "-t", "%.3f" % dur,
+         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-r", str(FPS),
+         "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", out],
+        cwd=workdir, check=True, timeout=900)
+    got = _probe(out)
+    if got[0] < 1.5 or not got[3]:
+        return ""
+    log("bayan taiyar: %.1fs (%s%s)" % (got[0], name or "naam nahi",
+                                       ", chehre dhundhle" if faces else ""))
+    return out
+
+
+def insert_point(timing, intro, lead, silences=(), total=0.0):
+    """Main video mein bayan kis second par judega.
+
+    bayan_intro vaakya script mein dhoondho, uske ANT ka samay aawaaz ki
+    timing se nikaalo, aur paas ki chuppi par bitha do (taaki anchor ka
+    shabd beech mein na kate). Vaakya na mile to poori script ke baad."""
+    import sy_scenes
+    text = (timing or {}).get("text") or ""
+    spans = (timing or {}).get("spans") or []
+    if not spans:
+        return None
+    voice_end = spans[-1][3]
+    t = None
+    i = sy_scenes.find_char(text, intro) if intro else -1
+    if i >= 0:
+        # find_char spacing saaf karke dhoondhta hai - ant bhi usi hisaab se.
+        n = len(re.sub(r"\s+", " ", intro.strip()))
+        t = sy_scenes.at_char(i + n, timing, 0.0, voice_end)
+    if t is None:
+        t = voice_end
+    # Paas ki chuppi (1.5 second ke andar) - uski shuruaat se thoda aage.
+    best = None
+    for s0, e0 in silences or ():
+        if abs(s0 - t) <= 1.5 and (best is None or abs(s0 - t) < abs(best - t)):
+            best = s0
+    if best is not None:
+        t = best + 0.12
+    t = lead + max(0.5, min(t, voice_end + 0.2))
+    if total:
+        t = min(t, total - 0.5)
+    return round(t, 3)
 
 
 def insert_bayan(story, video_path, workdir, timing, lead):
+    """Bani hui video mein bayan jodo. Nayi video ka path (ya purana hi)."""
+    seg = story.get("_bayan_seg")
+    if not seg or not os.path.exists(seg):
+        return video_path
+    import sy_endcard
+    info = load(story)
+    total = _probe(video_path)[0]
+    voice = os.path.join(workdir, "voice.wav")
+    sil = _silences(voice) if os.path.exists(voice) else []
+    at = insert_point(timing, info.get("bayan_intro") or "", lead, sil, total)
+    if at is None:
+        log("aawaaz ki timing nahi - bayan nahi juda")
+        story["_bayan_seg"] = ""
+        story["visual_line"] = str(story.get("visual_line") or "") + " | bayan nahi juda"
+        return video_path
+    W_, H_, rate, ch = sy_endcard._probe(video_path)
+    layout = "stereo" if ch >= 2 else "mono"
+    seg_len = _probe(seg)[0]
+    fx = ";".join([
+        "[0:v]trim=0:%.3f,setpts=PTS-STARTPTS,setsar=1,fps=%d,format=yuv420p[v0]" % (at, FPS),
+        "[0:a]atrim=0:%.3f,asetpts=PTS-STARTPTS,afade=t=out:st=%.3f:d=0.08[a0]"
+        % (at, max(0.0, at - 0.08)),
+        "[1:v]scale=%d:%d,setsar=1,fps=%d,format=yuv420p[v1]" % (W_, H_, FPS),
+        "[1:a]aresample=%d,aformat=sample_rates=%d:channel_layouts=%s[a1]" % (rate, rate, layout),
+        "[0:v]trim=start=%.3f,setpts=PTS-STARTPTS,setsar=1,fps=%d,format=yuv420p[v2]" % (at, FPS),
+        "[0:a]atrim=start=%.3f,asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.08[a2]" % at,
+        "[a0]aformat=sample_rates=%d:channel_layouts=%s[a0f]" % (rate, layout),
+        "[a2]aformat=sample_rates=%d:channel_layouts=%s[a2f]" % (rate, layout),
+        "[v0][a0f][v1][a1][v2][a2f]concat=n=3:v=1:a=1[v][a]",
+    ])
+    out = os.path.join(workdir, "with_bayan.mp4")
+    subprocess.run(
+        ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+         "-i", video_path, "-i", seg, "-filter_complex", fx,
+         "-map", "[v]", "-map", "[a]",
+         "-c:v", "libx264", "-preset", "medium", "-crf", "21",
+         "-pix_fmt", "yuv420p", "-r", str(FPS),
+         "-c:a", "aac", "-b:a", "192k", "-ar", str(rate), "-ac", str(ch),
+         "-movflags", "+faststart", out],
+        cwd=workdir, check=True, timeout=1800)
+    got = _probe(out)[0]
+    if abs(got - (total + seg_len)) > 1.2:
+        log("bayan ke saath lambai galat (%.1f, chahiye %.1f) - bina bayan"
+            % (got, total + seg_len))
+        story["_bayan_seg"] = ""
+        story["visual_line"] = str(story.get("visual_line") or "") + " | bayan nahi juda"
+        return video_path
+    shutil.move(out, video_path)
+    log("bayan %.1fs par juda (%.1fs)" % (at, seg_len))
+    story["visual_line"] = (str(story.get("visual_line") or "")
+                            + " | bayan (asli aawaaz) %d:%02d par, %.0fs"
+                            % (int(at) // 60, int(at) % 60, seg_len))
     return video_path
