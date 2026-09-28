@@ -300,7 +300,9 @@ def visual_verdict(story, shots, photo_source=""):
     beat = str(story.get("beat") or "")
     n = len(shots or [])
     if n:
-        filled = sum(1 for s in shots if s.get("file"))
+        # Anchor jo line khud bolegi, wo tukda bhi bhara hua ginte hain
+        # (asli nahi - "real" mein nahi judta).
+        filled = sum(1 for s in shots if s.get("file") or s.get("anchor_planned"))
         real = sum(1 for s in shots if s.get("source") in REAL_SOURCES)
     else:
         # Shot list bani hi nahi - ek hi tasveer wala purana rasta.
@@ -357,6 +359,8 @@ def produce(story):
     os.makedirs(workdir)
 
     st.update(sid, status="producing", error="")
+    # Pichhli khabar beech mein gir gayi ho to bhi title card wapas.
+    render_core.set_intro_mode(False)
     try:
         # BADE TABKE KA KAAM - sirf khabar/local par, sirf isliye ki
         # "random, kam kaam ki khabar" ki shikayat yahi thi. Gyan/kaam/
@@ -395,18 +399,27 @@ def produce(story):
                 story["shots"] = json.dumps(shots, ensure_ascii=False)
                 st.update(sid, shots=story["shots"])
 
-        shots = sy_media.fetch_shots(story, workdir)
+        # Jaankari video mein jin tukdon ka asli drishya na mile, unmein se
+        # kuch anchor khud bolegi (sy_explainer) - unpar AI chitran ka paisa
+        # nahi lagta, sirf nishan lagta hai.
+        try:
+            import sy_explainer
+            slots = sy_explainer.line_slots(story)
+        except Exception:
+            slots = 0
+        shots = sy_media.fetch_shots(story, workdir, anchor_slots=slots)
         thumb_is_ai = False
         if shots:
-            sy_media.thumb_art(shots, workdir)
+            tsh = sy_media.thumb_art(shots, workdir, story)
             credit = next((s.get("credit") for s in shots if s.get("credit")), "")
             source = next((s.get("source") for s in shots if s.get("source")), "")
             # thumb_art() usi pehle shot ko thumbnail banata hai jismein
             # file ho - yahin, ABHI, pakad lete hain ki wo Veo ka AI-chitran
             # tha ya nahi. Neeche 'shots' scene-building fail hone par
             # khaali ho sakta hai, isliye wahan se pata karna der ho jaati.
-            thumb_is_ai = next((s.get("source") == "veo"
-                                for s in shots if s.get("file")), False)
+            # thumb_art ab vishay wala shot bhi chun sakta hai (pehla nahi
+            # zaroori) - isliye jo shot SACH MEIN chuna gaya, usi se.
+            thumb_is_ai = isinstance(tsh, dict) and tsh.get("source") == "veo"
         else:
             # Ek bhi drishya nahi mila - purana rasta, ek hi tasveer.
             log("shot-dar-shot kuch nahi mila, ek tasveer par aa rahe hain")
@@ -470,6 +483,21 @@ def produce(story):
         _vp, timing = sy_tts.speak(story["script_hi"], workdir, style)
         secs = sy_tts.duration(os.path.join(workdir, "voice.wav"))
 
+        # JAANKARI WALI VIDEO KA ANCHOR - render se PEHLE, taaki render ko
+        # pata ho ki aage anchor judegi: tab channel ka title card nahi
+        # lagta aur aawaaz lagbhag turant shuru hoti hai. Pehle anchor ke
+        # "namaste" aur asli baat ke beech 4 second ka card aata tha -
+        # Harshvardhan ne kaha wo khabar se kaat deta hai.
+        prep = None
+        try:
+            import sy_explainer
+            prep = sy_explainer.prepare(story, workdir)
+        except Exception as e:
+            log("explainer anchor mein gadbad (bina uske aage):", e)
+        render_core.set_intro_mode(bool(prep))
+        if prep:
+            prep["lead"] = render_core.LEAD
+
         # Ab jaakar lambai pata chali, aur tabhi tay ho sakta hai ki kaun sa
         # drishya kab tak chalega. Isi wajah se ye kadam aawaaz ke BAAD hai.
         total_len = render_core.LEAD + secs + render_core.END_SECONDS
@@ -501,7 +529,11 @@ def produce(story):
         # sy_endcard) - tab render ke apne end card par wahi line dobara
         # likhne ki zaroorat nahi, sirf channel ka naam.
         job["endcard"] = sy_endcard.enabled()
-        render_core.render(job, workdir, out)
+        try:
+            render_core.render(job, workdir, out)
+        finally:
+            # Agli khabar par title card phir se (set_intro_mode dekhiye).
+            render_core.set_intro_mode(False)
         if not os.path.exists(out) or os.path.getsize(out) < 100000:
             raise RuntimeError("video bani hi nahi")
 
@@ -526,7 +558,7 @@ def produce(story):
         anchor_outro = ""
         try:
             import sy_explainer
-            anchor_outro = sy_explainer.make(story, out, workdir)
+            anchor_outro = sy_explainer.attach(story, out, workdir, prep)
         except Exception as e:
             log("explainer anchor mein gadbad (bina uske aage):", e)
 

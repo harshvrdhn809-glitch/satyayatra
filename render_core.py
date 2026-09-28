@@ -40,6 +40,37 @@ BUG_RED = "c8102e"
 # ke neeche duck hota hai, isliye khabar dabti nahi.
 MUSIC_PATH = ""
 MUSIC_DB = -26.0          # bed kitna dheema (awaaz ke saapeksh)
+
+# ASLI MUSIC KA FOLDER (Sep 2026, Harshvardhan: "background music nahi,
+# isliye videos sadi-sadi robotic lagti hain"). Upar ka synthesized bed teen
+# sine suron ki ek gunjan bhar hai - wahi robotic ehsaas. Ab assets/music/
+# mein licensed/royalty-free track (mp3/m4a/wav) rakhiye:
+#   assets/music/gyan/   - jaankari video (gy_/kb_/tc_/yj_) ke liye
+#   assets/music/khabar/ - khabar/bulletin ke liye (gambhir, dheemi dhun)
+#   assets/music/        - dono ke liye, agar upar wala khaali ho
+# Har video ko ek track milta hai (story id se tay - dobara render par
+# wahi). Koi track na ho to purana synthesized bed hi chalta hai.
+MUSIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "assets", "music")
+TRACK_DB = -22.0          # asli track ka star (sine bed se thoda upar)
+_MUSIC_EXT = (".mp3", ".m4a", ".wav", ".aac", ".ogg")
+
+
+def pick_music(job_id):
+    """Is video ke liye ek track - beat ke folder se, warna saanjhe folder se."""
+    jid = str(job_id or "")
+    group = "gyan" if jid.startswith(("gy_", "kb_", "tc_", "yj_")) else "khabar"
+    for d in (os.path.join(MUSIC_DIR, group), MUSIC_DIR):
+        try:
+            ts = sorted(f for f in os.listdir(d)
+                        if f.lower().endswith(_MUSIC_EXT)
+                        and os.path.isfile(os.path.join(d, f)))
+        except OSError:
+            ts = []
+        if ts:
+            k = sum(ord(c) for c in jid) % len(ts)
+            return os.path.join(d, ts[k])
+    return ""
 # ===============================================
 
 W, H = backdrop.W, backdrop.H
@@ -288,6 +319,26 @@ TITLE_SECONDS = 2.2
 HOOK_SECONDS = 2.0
 LEAD = TITLE_SECONDS + HOOK_SECONDS
 END_SECONDS = 3.0
+
+
+def set_intro_mode(anchor=False):
+    """Anchor video ke aage judne wali ho to channel ka title card nahi.
+
+    KYUN (Sep 2026, Harshvardhan): jaankari video anchor ke "namaste, aaj
+    ... samajhte hain" se shuru hoti hai. Uske turant baad ye title card
+    (channel ka naam, taareekh, phir hook) 4 second aata tha - anchor aur
+    asli baat ke beech ek khaali deewar. Anchor khud hi shuruaat hai, to
+    uske baad seedha khabar: drishya aur aawaaz lagbhag turant.
+
+    Har render ke baad set_intro_mode(False) - warna agli khabar bhi bina
+    card ke ban jaati. sy_produce.produce() ye finally mein karta hai."""
+    global TITLE_SECONDS, LEAD
+    if anchor:
+        TITLE_SECONDS = 0.0
+        LEAD = 0.35
+    else:
+        TITLE_SECONDS = 2.2
+        LEAD = TITLE_SECONDS + HOOK_SECONDS
 
 
 def _ass_colour(hex_rgb, alpha=0):
@@ -953,8 +1004,9 @@ def build_ass(job, dur, path):
     body_end = max(body_start + 1.0, dur - END_SECONDS)
 
     # ---- Title card
-    L("TitleBig", 0.15, TITLE_SECONDS, channel, "{\\fad(400,450)\\pos(%d,%d)}" % (W // 2, TITLE_Y[0]))
-    L("TitleSub", 0.6, TITLE_SECONDS, date_str, "{\\fad(450,450)\\pos(%d,%d)}" % (W // 2, TITLE_Y[1]))
+    if TITLE_SECONDS > 0.5:     # anchor ke baad card nahi (set_intro_mode)
+        L("TitleBig", 0.15, TITLE_SECONDS, channel, "{\\fad(400,450)\\pos(%d,%d)}" % (W // 2, TITLE_Y[0]))
+        L("TitleSub", 0.6, TITLE_SECONDS, date_str, "{\\fad(450,450)\\pos(%d,%d)}" % (W // 2, TITLE_Y[1]))
 
     # ---- Beech ka hissa: pehle key fact, phir wahi baat jo bolі ja rahi hai.
     #
@@ -964,7 +1016,7 @@ def build_ass(job, dur, path):
     # hai, par darshak ko wahi shabd dikhte hain jo us waqt sunai de rahe hain.
     # Hook card ab aawaaz se PEHLE, uske upar nahi. Iske peechhe pehla
     # drishya chal raha hota hai - screen khaali nahi rehti.
-    if key_fact:
+    if key_fact and body_start - show_start > 1.0:
         L("Hook", show_start + 0.1, body_start - 0.1, key_fact,
           "{\\fad(350,350)\\pos(%d,%d)}" % (W // 2, int(H * HOOK_Y)))
 
@@ -1254,7 +1306,7 @@ def build_filter(dur, job, bar_idx):
     return ";".join(p)
 
 
-def build_audio(audio, dur, workdir):
+def build_audio(audio, dur, workdir, track=""):
     """Aawaaz + bed ko pehle hi mila kar ek poori WAV bana do.
 
     YE ALAG KYUN CHALTA HAI - LIGHTHOUSE WALI VIDEO KA ASLI KEEDA
@@ -1286,6 +1338,10 @@ def build_audio(audio, dur, workdir):
     """
     out = os.path.join(workdir, "mix.wav")
     music = MUSIC_PATH if (MUSIC_PATH and os.path.exists(MUSIC_PATH)) else ""
+    if track and os.path.exists(track):
+        music = track
+    if music:
+        print("[render] music:", os.path.basename(music), flush=True)
 
     ms = int(LEAD * 1000)
     # Star pehle NAAP liya, ab sirf ek sthir gain. voice_gain_db() ke upar
@@ -1307,7 +1363,12 @@ def build_audio(audio, dur, workdir):
            "-i", audio, "-i", audio]
     if music:
         cmd += ["-stream_loop", "-1", "-i", music]
-        afilter += "[2:a]volume=%.1fdB,atrim=0:%.3f[bedq];" % (MUSIC_DB, dur)
+        # Shuru mein dheere ubhre, ant mein dheere doobe - jhatke se na kate.
+        afilter += ("[2:a]aformat=sample_rates=48000:channel_layouts=stereo,"
+                    "volume=%.1fdB,atrim=0:%.3f,afade=t=in:d=1.5,"
+                    "afade=t=out:st=%.3f:d=2.5[bedq];"
+                    % (TRACK_DB if music == track else MUSIC_DB, dur,
+                       max(0.0, dur - 2.5)))
     else:
         # Bina track ke ek halka bed khud bana lete hain: teen dheemi sur
         # (mool, panchan, ashtak) + bahut dheema tremolo. Ye kisi asli
@@ -1410,7 +1471,7 @@ def render(job, workdir, out_path):
 
     build_ass(job, dur, os.path.join(workdir, "overlay.ass"))
 
-    mixed = build_audio(audio, dur, workdir)
+    mixed = build_audio(audio, dur, workdir, pick_music(job.get("jobId")))
 
     pal = backdrop.palette(job.get("category"))
     acc = "%02x%02x%02x" % pal["accent"]

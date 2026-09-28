@@ -263,10 +263,12 @@ def credit_spans(shots):
         c = str(sh.get("credit") or "").strip()
         if not c:
             continue
-        if out and out[-1][2] == c:
-            out[-1][1] = sh["end"]      # wahi credit lagataar - jodh dete hain
+        # Clip ke baad studio chala ho to credit wahin tak (build() dekhiye).
+        end = min(sh["end"], sh.get("vis_end") or sh["end"])
+        if out and out[-1][2] == c and out[-1][1] >= sh["start"] - 0.05:
+            out[-1][1] = end            # wahi credit lagataar - jodh dete hain
             continue
-        out.append([sh["start"], sh["end"], c])
+        out.append([sh["start"], end, c])
     return [tuple(x) for x in out]
 
 
@@ -405,13 +407,64 @@ def build(shots, total, workdir, out_name="clip.mp4"):
     mi = 0
     last_file, last_kind = "", ""
 
+    # SAMAY KI KAMI WAHIN BHARO JAHAN HUI (Sep 2026).
+    #
+    # Pehle koi tukda fail hota (ffmpeg gira / file nahi mili) to chup-chaap
+    # 'continue' - clock aage nahi badhta tha. Nateeja: baad ke saare
+    # drishya aawaaz se AAGE khisak jaate, aur aakhir mein _top_up aakhri
+    # tasveer ko 25-48 second tak ek jagah jamaa deta. Credit apne sahi
+    # samay par chalta raha - yaani screen par ek tasveer aur neeche kisi
+    # aur ka naam. gy_indus_202609 (naksha aur Dholavira dikhe hi nahi,
+    # ruke hue khandhar par "Dmitry Anuchin" credit) aur st_9699961 (CHC,
+    # nadi kinara, shok - teeno ki jagah 48s ek jami hui tasveer, neeche
+    # "Pexels" credit). Ab har tukde se pehle hisaab: jitna samay ab tak
+    # hona chahiye tha (target) usse clock peeche hai to kami wahin bharo -
+    # studio se (jiska drishya dikha hi nahi, uska credit bhi hata kar),
+    # warna pichhli safal tasveer CHALTE nazariye se.
+    target = 0.0
+    last_good = ("", "", "")        # (file, kind, credit) - jo sach mein bana
+
+    def heal(sh_prev):
+        nonlocal clock
+        gap = target - clock
+        if not segs or gap <= 0.3:
+            return
+        shown = bool((sh_prev or {}).get("_shown"))
+        use_studio = bool(studio) and not shown
+        if not use_studio and not last_good[0]:
+            return
+        name = "seg%02d.mp4" % len(segs)
+        try:
+            if use_studio:
+                _studio_segment(workdir, studio, name, gap, clock)
+            elif last_good[1] == "clip":
+                _clip_segment(workdir, last_good[0], name, gap)
+            else:
+                _photo_segment(workdir, last_good[0], name, gap,
+                               _wide(int(gap * FPS))[mi % 4])
+        except Exception as e:
+            log("%.1fs ki kami nahi bhari ja saki: %s" % (gap, e))
+            return
+        segs.append(name)
+        clock += gap
+        cuts.append(round(clock, 3))
+        log("%.1fs ki kami bhari (%s)" % (gap, "studio" if use_studio else "pichhla drishya"))
+        if sh_prev is not None and not shown:
+            sh_prev["credit"] = "" if use_studio else last_good[2]
+            sh_prev["studio"] = use_studio
+
+    prev = None
     for idx, sh in enumerate(shots):
+        heal(prev)
+        prev = sh
         sh.pop("studio", None)
+        sh.pop("vis_end", None)
         dur = float(sh["end"]) - float(sh["start"])
         if idx == 0:
             dur += float(sh["start"])        # title card bhi yahi drishya dhake
         if idx == len(shots) - 1:
             dur += end_pad
+        target += dur
 
         if not sh.get("file") and studio:
             if dur <= 0.2:
@@ -423,6 +476,7 @@ def build(shots, total, workdir, out_name="clip.mp4"):
                 log("studio ka tukda nahi bana (%d): %s" % (idx + 1, e))
             else:
                 sh["studio"] = True
+                sh["_shown"] = True
                 segs.append(name)
                 clock += dur
                 cuts.append(round(clock, 3))
@@ -443,18 +497,52 @@ def build(shots, total, workdir, out_name="clip.mp4"):
 
         src = os.path.join(workdir, f)
         if not os.path.exists(src):
+            log("tukda %d ki file nahi mili: %s" % (idx + 1, f))
             continue
 
         if kind == "clip":
+            # CLIP EK HI BAAR CHALE, LOOP NAHI (Sep 2026). 6-8 second ki Veo
+            # clip 20 second ke tukde par teen baar dohrayi jaati thi -
+            # Harshvardhan: "8 sec ka clip bar bar repeat karte rehte hain,
+            # wo theek nahi". Ab clip apni lambai tak chalti hai, baaki samay
+            # studio par (credit/AI label wahin ruk jaata hai - vis_end), aur
+            # studio na ho to clip ke aakhri frame par chalta nazariya.
             name = "seg%02d.mp4" % len(segs)
+            n_len = _duration(src)
+            play = dur if not (n_len > 1.0 and dur > n_len + 1.0) else n_len - 0.1
             try:
-                _clip_segment(workdir, f, name, dur)
+                _clip_segment(workdir, f, name, play)
             except Exception as e:
                 log("clip ka tukda nahi bana (%d): %s" % (idx + 1, e))
                 continue
             segs.append(name)
-            clock += dur
+            clock += play
             cuts.append(round(clock, 3))
+            sh["_shown"] = True
+            last_good = (f, kind, sh.get("credit") or "")
+            rest = dur - play
+            if rest > 0.2:
+                name = "seg%02d.mp4" % len(segs)
+                try:
+                    if studio:
+                        _studio_segment(workdir, studio, name, rest, clock)
+                        sh["vis_end"] = round(clock, 2)
+                    else:
+                        still = "_still%d.jpg" % idx
+                        subprocess.run(
+                            ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                             "-sseof", "-0.3", "-i", f, "-frames:v", "1", "-q:v", "3", still],
+                            cwd=workdir, check=True, timeout=60)
+                        _photo_segment(workdir, still, name, rest,
+                                       _wide(int(rest * FPS))[mi % 4])
+                except Exception as e:
+                    log("clip ke baad ka samay nahi bhara (%d): %s" % (idx + 1, e))
+                else:
+                    segs.append(name)
+                    clock += rest
+                    cuts.append(round(clock, 3))
+                    log("  %d: clip %.1fs ki thi, baaki %.1fs %s" % (
+                        idx + 1, play, rest, "studio" if studio else "aakhri frame"))
             continue
 
         n = _subs(dur)
@@ -476,7 +564,12 @@ def build(shots, total, workdir, out_name="clip.mp4"):
             segs.append(name)
             clock += each
             cuts.append(round(clock, 3))
+            sh["_shown"] = True
+            last_good = (f, kind, sh.get("credit") or "")
 
+    heal(prev)                      # aakhri tukda bhi fail hua ho to
+    for sh in shots:
+        sh.pop("_shown", None)
     if not segs:
         return []
 

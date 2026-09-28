@@ -437,7 +437,18 @@ def make(prompt, out_path, beat, vertical=False, image_path=""):
 CREDIT = "AI चित्रण · सत्ययात्रा न्यूज"
 
 
-def prompt_for(shot, place=""):
+# KHABAR PAR ASLI JAGAH KA NAAM PROMPT MEIN NAHI (Sep 2026, st_9699961).
+# "Mohanlalganj CHC" wale tukde par prompt mein naam gaya ("Mohanlalganj CHC
+# community health centre ... in Mohanlalganj, India") aur Veo ne ek
+# imaarat bana di jis par Devanagari jaisa nakli board tha - dekhne mein
+# bilkul usi asli CHC ki photo. Ye usool 2 ka ulanghan hai: AI chitran
+# kisi asli, naam wali jagah ka "saboot" ban gaya. Ab khabar/bulletin par
+# sirf sabse AAM khoj (art director aakhri khoj aam rakhta hai) jaati hai,
+# brief aur jagah ka naam nahi; aur har prompt mein board/likhawat mana.
+NEWS_BEATS = ("local", "news", "bulletin")
+
+
+def prompt_for(shot, place="", beat=""):
     """Shot ki apni baat se Veo ke liye ek prompt.
 
     Art director pehle se har tukde ka "brief" aur angrezi "queries" deta
@@ -448,12 +459,22 @@ def prompt_for(shot, place=""):
     brief = str(shot.get("brief") or "").strip()
     qs = [str(q).strip() for q in (shot.get("queries") or []) if str(q).strip()]
     bits = []
-    if qs:
-        bits.append(qs[0])
-    if brief:
-        bits.append(brief)
-    if place and place.lower() not in " ".join(bits).lower():
-        bits.append("in %s, India" % place)
+    if str(beat or "") in NEWS_BEATS:
+        # Upar NEWS_BEATS wali tippani dekhiye - aam khoj, bina jagah ke naam.
+        if qs:
+            q = qs[-1]
+            if place:
+                q = re.sub(re.escape(place), "", q, flags=re.I)
+            q = " ".join(q.split())
+            if q:
+                bits.append("a typical scene: " + q + ", somewhere in India")
+    else:
+        if qs:
+            bits.append(qs[0])
+        if brief:
+            bits.append(brief)
+        if place and place.lower() not in " ".join(bits).lower():
+            bits.append("in %s, India" % place)
     body = ", ".join(bits)[:600]
     if len(body) < 12:
         # KHOKHLA PROMPT NAHI JAANA CHAHIYE.
@@ -478,5 +499,8 @@ def prompt_for(shot, place=""):
             return ""      # kuch bhi thos nahi - to clip bhi nahi
     # Documentary ka roop - film jaisa nahi. Ye jaan-boojhkar hai: drishya
     # ko sach ke paas rehna chahiye, chahe wo chitran hi ho.
+    # "no text" akela kaafi nahi tha - Veo ne phir bhi imaarat par nakli
+    # board likh diya (st_9699961). Board/likhawat/logo saaf mana.
     return ("Documentary style footage, steady camera, natural daylight, "
-            "no people, no text on screen: " + body)
+            "no people, no text on screen, no signboards, no lettering or "
+            "writing anywhere, no logos: " + body)

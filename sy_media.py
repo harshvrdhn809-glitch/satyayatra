@@ -25,8 +25,14 @@ MAX_CLIP_MB = 60
 # Ek shot par hum zyada se zyada itni tasveerein/frame Claude ko dikha kar
 # jaanchte hain, phir chahe koi pass na hui ho. Isse kharch aur samay dono
 # seemit rehte hain - band-baar naya candidate dekhte rehna kabhi khatam na
-# hone wala loop ban sakta tha. Budget khatam hone par jo candidate text-
-# milaan se pehle se sahi laga use maan lete hain, jaisa pehle hota tha.
+# hone wala loop ban sakta tha.
+#
+# Budget khatam hone par ab koi candidate BINA DEKHE nahi liya jaata (pehle
+# liya jaata tha). Sep 2026, "Sindhu Ghati" (gy_indus_202609) reject: naali/
+# eent wale shot par lakdi kaatti jigsaw ki Pixabay clip, Mohenjo-daro ke
+# naam par kisi aur khandhar ki Pexels aerial - ye stock plan ke aakhir mein
+# aate hain, jab budget khatam ho chuka hota hai, aur sirf shabd-milaan se
+# paas ho jaate the. Ab budget khatam = khoj band, shot AAKHRI SAHARE par.
 VISION_MAX_TRIES = 4
 
 # Do Commons request ke beech kam se kam itne second.
@@ -965,6 +971,23 @@ def _vision_prompt(brief, query, is_thumb):
         "- Ye kisi asli, pehchaane jaane wale AAM vyakti (aaropi/peedit/"
         "gawah/aam nagrik) ka seedha, saaf chehra dikha rahi ho - aisa "
         "chehra kabhi nahi dikhna chahiye.",
+        # Sep 2026, gy_indus_202609: "Mohenjo-daro ki naaliyan" par ek
+        # patthar ki murti-numa cheez, aur "Sindhu Ghati ka vistaar" wale
+        # naksha par 19vi sadi ka Misr/Mesopotamia/Ariana naksha paas ho
+        # gaye - shabd mile, par drishya wo cheez dikhata hi nahi tha.
+        "- Drishya jis KHAAS cheez/jagah ka naam leta hai (jaise koi "
+        "prachin shehar, naali, naksha jisme koi ilaaka dikhna hai), wo "
+        "tasveer mein dikhti hi nahi - sirf milta-julta vishay hai "
+        "(kisi aur jagah ke khandhar, koi aur vastu, koi aur naksha).",
+        # Sep 2026, st_9699961: Lucknow ke gaon mein teen mauton ke "shok"
+        # par Pixabay ki videshi funeral - kaala suit, phoolon se dhaka
+        # coffin - paas ho gayi, kyunki "grief" to dikh raha tha. Bharat
+        # ki khabar par videshi reeti/pehnaawa pratikatmak bhi jhooth hai.
+        "- Khabar Bharat ki hai par tasveer saaf videshi sanskriti/reeti "
+        "dikhati hai (jaise coffin wali western funeral, church, videshi "
+        "sadak/board/police) - pratikatmak tasveer par bhi ye reject.",
+        "- Tasveer par kisi AUR jagah/sanstha ka padhne layak naam (board, "
+        "signboard) likha ho jo is drishya ki jagah nahi hai.",
     ]
     if is_thumb:
         lines += [
@@ -1028,8 +1051,10 @@ def _vision_ok_clip(clip_path, workdir, brief, query, is_thumb, budget):
                         "-q:v", "5", frame],
                        check=True, timeout=60)
     except Exception as e:
-        log("  vision ke liye frame nahi nikla:", e)
-        return True, False
+        # Frame hi nahi nikla to clip bina dekhe paas nahi - _vision_ok ke
+        # asafal-jaanch wale usool ki tarah (gy_indus_202609 ke baad).
+        log("  vision ke liye frame nahi nikla - ye clip chhod rahe hain:", e)
+        return False, True
     try:
         return _vision_ok(frame, brief, query, is_thumb, budget)
     finally:
@@ -1039,7 +1064,7 @@ def _vision_ok_clip(clip_path, workdir, brief, query, is_thumb, budget):
             pass
 
 
-def fetch_shots(story, workdir):
+def fetch_shots(story, workdir, anchor_slots=0):
     """Har tukde ke liye ek alag drishya laao.
 
     Lauta ta hai wahi shot list, par har shot mein file aur credit jud kar.
@@ -1075,16 +1100,25 @@ def fetch_shots(story, workdir):
     vertical = beat in ("bolly", "viral")
 
     used_urls = set()
+    anchor_left = int(anchor_slots or 0)
     got = 0
     for i, sh in enumerate(shots):
         sh["file"] = ""
         sh["credit"] = ""
         sh["source"] = ""
+        sh.pop("anchor_planned", None)
         # Pehla tukda usually thumbnail bhi banta hai (thumb_art() shots
         # ko kram se dekhta hai) - isliye ispar vision jaanch zyada sakht.
         is_thumb = (i == 0)
         vbudget = VISION_MAX_TRIES
+        found = False
         for name, fn, q in _shot_plan(sh.get("queries") or [], sh.get("type"), place):
+            # Budget khatam - aage ka har candidate bina dekhe aata, isliye
+            # yahin ruko (VISION_MAX_TRIES ke upar gy_indus_202609 dekhiye).
+            if _vision_gate_on() and vbudget <= 0:
+                log("  %d: %d tasveerein dekh li, koi sahi nahi - khoj band"
+                    % (i + 1, VISION_MAX_TRIES))
+                break
             try:
                 url, credit = fn(q)
             except Exception as e:
@@ -1136,10 +1170,22 @@ def fetch_shots(story, workdir):
             sh["credit"] = credit
             sh["source"] = name
             got += 1
+            found = True
             log("  %d. %s <- %s (%s)" % (i + 1, sh.get("type") or "?", name, q))
             break
-        else:
+        if not found:
             log("  %d. %s <- kuch nahi mila" % (i + 1, sh.get("type") or "?"))
+            # ANCHOR KHUD YE LINE BOLEGI (Sep 2026, sirf jaankari video) -
+            # Harshvardhan: "jahan asli footage na mile wahan ladki baaki ki
+            # lines bole". To yahan AI chitran ka paisa nahi lagate; tukda
+            # khaali chhod kar nishan lagate hain, aur sy_explainer render ke
+            # baad usi video wali anchor ka ek clip is jagah jod deta hai. Anchor
+            # na ban paaye to ye tukda studio par chalta hai (sy_scenes).
+            if anchor_left > 0:
+                anchor_left -= 1
+                sh["anchor_planned"] = True
+                log("  (ye line anchor bolegi)")
+                continue
             # AAKHRI SAHARA - muft srot mein is tukde ka koi drishya hai hi
             # nahi. Ab (Sep 2026) khabar/bulletin bhi isi sahare mein
             # shaamil hain, gyan/kaam/yojana ki tarah - saaf label ke
@@ -1150,7 +1196,9 @@ def fetch_shots(story, workdir):
             try:
                 import sy_veo
                 ok, why = sy_veo.allowed(beat)
-                prompt = sy_veo.prompt_for(sh, place) if ok else ""
+                # beat bhi jaata hai - khabar par asli jagah ka naam prompt
+                # mein nahi jaata (sy_veo NEWS_BEATS, st_9699961).
+                prompt = sy_veo.prompt_for(sh, place, beat) if ok else ""
                 if ok and not prompt:
                     # prompt_for khaali laut aaye to is tukde par kehne
                     # layak kuch hai hi nahi - Veo ko "kuch bhi bana do"
@@ -1176,13 +1224,35 @@ def fetch_shots(story, workdir):
     return shots if got else []
 
 
-def thumb_art(shots, workdir):
-    """Thumbnail ke liye pehla drishya photo.jpg mein rakh do.
+def thumb_art(shots, workdir, story=None):
+    """Thumbnail ke liye ek drishya photo.jpg mein rakh do. Jo shot chuna
+    gaya wahi lautata hai (ya False).
 
-    Thumbnail aur video ka pehla shot ek hi hona chahiye - warna darshak
-    jis tasveer par click karta hai wo video mein milti hi nahi.
+    Thumbnail ka drishya video mein hona hi chahiye - warna darshak jis
+    tasveer par click karta hai wo video mein milti hi nahi.
+
+    VISHAY WALA DRISHYA PEHLE (Sep 2026): pehle hamesha pehla shot jaata
+    tha. gy_konark_202609 mein pehla shot "zara sochiye aap samudra mein
+    hain" wala hook tha - dolphin ki tasveer - aur thumbnail par "कोणार्क
+    मंदिर" ke peeche dolphin tair rahi thi. Ab jaankari video (Wikipedia
+    lekh wali) mein pehle wo shot jiski khoj mein lekh ka KHAAS NAAM ho
+    (Konark...), phir baaki purane kram se. Khabar par kuch nahi badla.
     """
-    for sh in shots:
+    order = list(shots or [])
+    link = str((story or {}).get("source_link") or "")
+    if "wikipedia.org/wiki/" in link:
+        page = link.rsplit("/", 1)[-1].replace("_", " ")
+        try:
+            import urllib.parse
+            page = urllib.parse.unquote(page)
+        except Exception:
+            pass
+        key = proper_terms(page)
+        if key:
+            hit = [sh for sh in order if sh.get("file") and any(
+                k in " ".join(sh.get("queries") or []).lower() for k in key)]
+            order = hit + [sh for sh in order if sh not in hit]
+    for sh in order:
         f = sh.get("file")
         if not f:
             continue
@@ -1191,7 +1261,7 @@ def thumb_art(shots, workdir):
         if sh.get("kind") == "photo":
             try:
                 shutil.copyfile(src, dst)
-                return True
+                return sh
             except Exception as e:
                 log("thumbnail ki tasveer nahi rakhi ja saki:", e)
                 return False
@@ -1201,7 +1271,7 @@ def thumb_art(shots, workdir):
                             "-vf", "scale='max(1920,iw)':-2:flags=lanczos",
                             "-q:v", "3", "photo.jpg"],
                            cwd=workdir, check=True, timeout=120)
-            return True
+            return sh
         except Exception as e:
             log("clip se frame nahi nikla:", e)
             return False
@@ -1252,6 +1322,10 @@ def fetch_media(story, workdir):
     headline = str(story.get("headline_hi") or "")
     vbudget = VISION_MAX_TRIES
     for name, fn, q in plan:
+        # Budget khatam to bina dekhe kuch nahi - designed backdrop galat
+        # tasveer se behtar hai (gy_indus_202609, Sep 2026).
+        if _vision_gate_on() and vbudget <= 0:
+            break
         url, credit = fn(q)
         if not url:
             continue

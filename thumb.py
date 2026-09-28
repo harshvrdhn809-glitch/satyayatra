@@ -23,7 +23,7 @@ import os
 import re
 import subprocess
 
-from PIL import Image, ImageDraw, ImageOps
+from PIL import Image, ImageDraw, ImageEnhance, ImageOps
 
 import sy_config as cfg
 
@@ -494,19 +494,28 @@ def _plate_poster(art):
 PLATES = {"split": _plate_split, "slab": _plate_slab, "poster": _plate_poster}
 
 
-def _plate_anchor(art, anchor):
+def _plate_anchor(art, anchor, raw=None):
     """D - 'Anchor'. Jaankari wali video ki apni AI anchor daayein, vishay
-    ki tasveer baayein text ke peeche halki si. Chehra thumbnail par
-    click-through badhata hai - aur ye wahi chehra hai jo video mein
-    shuru aur ant mein dikhta hai, koi dhokha nahi. (Sep 2026)
+    ki tasveer poore peechhe. Chehra thumbnail par click-through badhata
+    hai - aur ye wahi chehra hai jo video mein shuru aur ant mein dikhta
+    hai, koi dhokha nahi. (Sep 2026)
+
+    VISHAY KI TASVEER AB SAAF DIKHTI HAI (Sep 2026, Harshvardhan): pehle
+    tasveer channel ke neele rang mein rangi (_tint) jaati thi aur upar se
+    150-235 ka gehra neela parda - Sindhu Ghati/Ashoka ki thumbnail par
+    peechhe kuch pehchana hi nahi jaata tha, "andar kya hai" ka koi ishara
+    nahi. Ab asli rang (raw), sirf halka sa dheema, aur parda patla. Text
+    ki padhai ab parde se nahi, mote kaale outline se aati hai (_events).
+    (Kandhe ke paas alag dabbe wala idea unhe pasand nahi aaya - hataya.)
 
     anchor = sy_explainer.thumb_still() ki tasveer, 640:720 anupat mein."""
     im = Image.new("RGB", (TW, TH), NAVY)
-    if art is not None:
-        # Vishay ki tasveer poori frame par, par gehri - text uske upar
-        # padhna hai, aur daayein hissa anchor dhak degi.
-        bg = _cover(art, TW, TH)
-        layer, mask = _grad((TW, TH), NAVY, 150, 235, horizontal=True)
+    src = raw if raw is not None else art
+    if src is not None:
+        bg = _cover(src, TW, TH)
+        if raw is not None:
+            bg = ImageEnhance.Brightness(bg).enhance(0.90)
+        layer, mask = _grad((TW, TH), NAVY, 60, 130, horizontal=True)
         bg.paste(layer, (0, 0), mask)
         im.paste(bg, (0, 0))
     pw = int(TW * 0.50)
@@ -582,8 +591,11 @@ def _events(style, text, place, keyword, ai_label, entity=""):
         for ln, size, col in rows:
             nm = "L%d%s" % (size, col)
             if nm not in seen:
+                # Mota kaala outline (4 se 8) - peechhe ki tasveer ab
+                # saaf dikhti hai (_plate_anchor), to safed/sona text
+                # usmein ghul na jaaye (Sep 2026, Harshvardhan ki maang).
                 st(nm, size, gold if col == "g" else white,
-                   align=7, outline=4, shadow=3)
+                   align=7, outline=8, shadow=4)
                 seen.add(nm)
             ev.append("Dialogue: 0,0:00:00.00,0:00:10.00,%s,,0,0,0,,"
                       "{\\%s\\pos(%d,%d)}%s" % (nm, an, x, y, mark(ln)))
@@ -608,7 +620,7 @@ def _events(style, text, place, keyword, ai_label, entity=""):
             st("Chip", 46, white, align=7, bcol=_hx(RED), pad=15)
             ev.append("Dialogue: 0,0:00:00.00,0:00:10.00,Chip,,0,0,0,,"
                       "{\\an7\\pos(%d,%d)}%s" % (pad, 60, _esc(place)))
-        st("Sig", 38, _hx((255, 210, 210)), align=7)
+        st("Sig", 38, _hx((255, 210, 210)), align=7, outline=3)
         ev.append("Dialogue: 0,0:00:00.00,0:00:10.00,Sig,,0,0,0,,"
                   "{\\an7\\pos(%d,%d)}%s" % (pad, TH - 92, CHANNEL_HI))
 
@@ -720,7 +732,13 @@ def build(out_path, text, place="", keyword="", art_path="",
             # Text baayein ke column mein - wahi jagah jo 'split' ki hai.
             style = "split"
             _ANCHOR = True
-            _plate_anchor(art, anchor).save(plate_p)
+            raw = None
+            if art_path and os.path.exists(art_path):
+                try:
+                    raw = Image.open(art_path).convert("RGB")
+                except Exception:
+                    raw = None
+            _plate_anchor(art, anchor, raw).save(plate_p)
         else:
             PLATES.get(style, _plate_split)(art).save(plate_p)
         # AI ka label sirf tab jab tasveer sach mein AI ki ho: ya to caller

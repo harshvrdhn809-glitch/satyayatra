@@ -171,8 +171,10 @@ def _write_md(rows):
         c = r.get("context") or {}
         lines.append("## %s - %s" % (r.get("at", ""), r.get("story_id", "")))
         lines.append("- beat: %s | headline: %s" % (c.get("beat"), c.get("headline_hi")))
-        lines.append("- wajah: %s" % ", ".join(_label(x) for x in r.get("reasons") or [])
-                     or "- wajah: (button nahi dabaya)")
+        # '%' pehle lagta hai, 'or' baad mein - isliye pehle "(button nahi
+        # dabaya)" kabhi nahi dikhta tha, bas "wajah: " khaali (st_9699961).
+        labs = ", ".join(_label(x) for x in r.get("reasons") or [])
+        lines.append("- wajah: %s" % (labs or "(button nahi dabaya)"))
         for n in r.get("notes") or []:
             lines.append("- aapke shabd: \"%s\"" % n)
         for sh in c.get("shots") or []:

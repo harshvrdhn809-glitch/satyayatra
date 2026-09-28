@@ -38,8 +38,11 @@ chahiye - kyunki YouTube par darshak sabse pehle wahi dekhta hai.
 
 Ek shot (ya bulletin/evergreen ki ek hi tasveer) par zyada se zyada 4
 tasveerein hi Claude ko dikhai jaati hain, chahe koi pass na ho. Uske
-baad jo bhi shabd-milaan se sahi laga use maan liya jaata hai - jaisa
-pehle hota tha. Isse na kharch bhaagta hai, na koi khoj kabhi-na-khatam
+baad us shot ki khoj band ho jaati hai - bina dekhe kuch nahi liya jaata
+(Sep 2026, gy_indus_202609 ke baad; pehle shabd-milaan wala le liya jaata
+tha, aur wahi galat stock chal jaata tha). Shot phir labeled AI chitran
+(AAKHRI SAHARA) ya pichhle drishya par jaata hai, akeli tasveer designed
+backdrop par. Isse na kharch bhaagta hai, na koi khoj kabhi-na-khatam
 hone waala loop banti hai.
 
 Vision jaanch ke liye alag, sasta model bhi rakha ja sakta hai

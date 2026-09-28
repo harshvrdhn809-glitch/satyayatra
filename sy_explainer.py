@@ -324,13 +324,11 @@ def _person_x(clip, W=480):
     return max(0.2, min(0.8, cx))
 
 
-def thumb_still(clip, at, workdir):
-    """workdir/anchor_thumb.jpg - anchor ka kamar-se-upar hissa, thumbnail
-    ke daayein panel ke anupat mein kata hua."""
-    cx = _person_x(clip)
-    frame = os.path.join(workdir, "anchor_frame.png")
+def _still_at(clip, t, cx, workdir, name="anchor_frame.png"):
+    """Clip ke 't' second ka frame, thumbnail ke daayein panel ke naap mein."""
+    frame = os.path.join(workdir, name)
     subprocess.run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-                    "-ss", "%.3f" % max(0.0, at), "-i", clip, "-frames:v", "1",
+                    "-ss", "%.3f" % max(0.0, t), "-i", clip, "-frames:v", "1",
                     "-vf", "scale=1920:1080:force_original_aspect_ratio=increase,"
                            "crop=1920:1080", frame], check=True, timeout=60)
     from PIL import Image
@@ -339,48 +337,318 @@ def thumb_still(clip, at, workdir):
     cw = int(ch * STILL_ASPECT)
     left = int(cx * im.size[0] - cw / 2)
     left = max(0, min(im.size[0] - cw, left))
-    im.crop((left, 0, left + cw, ch)).save(
-        os.path.join(workdir, THUMB_STILL), quality=92)
-    log("thumbnail ke liye anchor ki tasveer (x=%.2f)" % cx)
+    return im.crop((left, 0, left + cw, ch))
+
+
+def thumb_still(clip, at, workdir):
+    """workdir/anchor_thumb.jpg - anchor ka kamar-se-upar hissa, thumbnail
+    ke daayein panel ke anupat mein kata hua.
+
+    AANKH KHULI HO (Sep 2026, Harshvardhan: "thumbnail mein aankhein band
+    wali ladki nahi chalegi" - Konark wali thumbnail). Pehle frame theek
+    'at' par liya jaata tha - yaani do line ke beech ki CHUPPI par, jo
+    thik wahi lamha hai jab anchor muskura kar palak jhapkati/aankh moondti
+    hai. Ab chuppi se hat kar 6 lamhe liye jaate hain, ek jaal (1-6) mein
+    Claude ko dikhaye jaate hain, aur wahi chuna jaata hai jismein aankhein
+    saaf khuli aur camera ki taraf hon. Jaanch na ho paaye to chuppi se
+    0.8s pehle wala (bolte hue) frame - chuppi wala kabhi nahi."""
+    cx = _person_x(clip)
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=nw=1:nk=1", clip],
+            capture_output=True, text=True, timeout=60)
+        dur = float((out.stdout or "0").strip() or 0)
+    except Exception:
+        dur = 0.0
+    hi = max(0.4, dur - 0.4) if dur else at + 1.5
+    ts = [min(hi, max(0.4, at + d)) for d in (-0.8, -1.6, 0.8, 1.6, -2.4, 2.4)]
+    picks = []
+    for k, t in enumerate(ts):
+        try:
+            picks.append(_still_at(clip, t, cx, workdir, "anchor_cand%d.png" % k))
+        except Exception:
+            pass
+    if not picks:
+        raise RuntimeError("anchor ka koi frame nahi nikla")
+    best = 0
+    try:
+        from PIL import Image, ImageDraw
+        tw, th = 320, 360
+        grid = Image.new("RGB", (tw * 3, th * 2), (0, 0, 0))
+        for k, im in enumerate(picks):
+            g = im.resize((tw, th))
+            dr = ImageDraw.Draw(g)
+            dr.rectangle([0, 0, 56, 56], fill=(200, 16, 46))
+            try:
+                from PIL import ImageFont
+                fnt = ImageFont.load_default(size=40)
+            except Exception:
+                fnt = None
+            dr.text((16, 6), str(k + 1), fill=(255, 255, 255), font=fnt)
+            grid.paste(g, ((k % 3) * tw, (k // 3) * th))
+        gp = os.path.join(workdir, "anchor_cands.jpg")
+        grid.save(gp, quality=88)
+        import sy_ai
+        j = sy_ai.ask_vision_json(
+            "Aap ek news channel ke thumbnail editor hain. Sirf JSON lautaiye.",
+            "Is jaal mein ek hi anchor ke %d frame hain, har ek par laal "
+            "dabbe mein number. YouTube thumbnail ke liye sabse achha frame "
+            "chuniye: DONO AANKHEIN SAAF KHULI hon, camera ki taraf dekh "
+            "rahi ho, chehra dhundhla na ho. Aankh band/aadhi band ya "
+            "palak jhapakta frame kabhi nahi. Koi bhi theek na ho to 0. "
+            'JSON: {"best": number, "reason": "chhota karan"}' % len(picks),
+            gp, max_tokens=120)
+        n = int((j or {}).get("best") or 0)
+        if 1 <= n <= len(picks):
+            best = n - 1
+        else:
+            log("thumbnail: vision ko khuli aankh wala frame nahi mila (%s)"
+                % str((j or {}).get("reason") or "")[:80])
+    except Exception as e:
+        log("thumbnail frame ki vision jaanch nahi hui (bolte hue frame liya):", e)
+    picks[best].save(os.path.join(workdir, THUMB_STILL), quality=92)
+    log("thumbnail ke liye anchor ki tasveer (x=%.2f, t=%.2fs)" % (cx, ts[best]))
+
+
+# ------------------------------------------------- beech ki lines (Sep 2026)
+#
+# Harshvardhan: "jahan asli footage na mile, wahan ladki baaki ki lines
+# bole." sy_media.fetch_shots() aise tukdon par "anchor_planned" ka nishan
+# lagata hai (AI chitran ka paisa nahi lagata). Render ke baad yahan har
+# aise tukde ke liye usi video wali anchor ka ek naya clip banta hai jismein
+# wo usi tukde ki line apni aawaaz mein bolti hai, aur mukhya video ke us
+# hisse (TTS aawaaz + studio) ki jagah wahi clip jud jaata hai.
+#
+# EK VIDEO, EK CHEHRA: ye clip HAMESHA image-to-video se banta hai, aur
+# tasveer is video ke apne shuru wale anchor clip ka frame hoti hai - sirf
+# prompt se banane par Veo naya chehra bana deta. Tasveer se na bane to wo
+# tukda studio par hi chalta hai, kisi aur chehre ke saath kabhi nahi.
+#
+# Dhyaan: in hisson mein aawaaz Veo anchor ki hoti hai, baaki script ki TTS
+# ki - ye Harshvardhan ka chuna hua samjhauta hai.
+
+LINE_MAX_CHARS = 105      # ~8 sec mein itna Hindi aaraam se bola jaata hai
+
+
+def max_line_clips():
+    return cfg.num("explainer", "max_line_clips", 3)
+
+
+def line_slots(story):
+    """fetch_shots se pehle: kitne khaali tukde anchor ke liye rakhne hain.
+    Sasta - koi API nahi, sirf switch/kota/beat."""
+    try:
+        if str(story.get("beat") or "") not in BEATS or not enabled():
+            return 0
+        import sy_anchor
+        if not sy_anchor.sa_path():
+            return 0
+        # 1 clip shuru/vida ka + baaki lines ke
+        return max(0, min(max_line_clips(), _room_left() - 1))
+    except Exception:
+        return 0
+
+
+def _frame_b64(clip, at, workdir, name="line_ref.jpg"):
+    import sy_endcard
+    out = os.path.join(workdir, name)
+    badge = os.path.join(_assets(), sy_endcard.BADGE[0])
+    cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+           "-ss", "%.3f" % max(0.0, at), "-i", clip]
+    if sy_endcard._ok_file(badge, 1000):
+        cmd += ["-i", badge, "-filter_complex",
+                "[0:v]scale=1920:1080:force_original_aspect_ratio=increase,"
+                "crop=1920:1080[b];[b][1:v]overlay=%d:%d"
+                % (sy_endcard.BADGE[1], sy_endcard.BADGE[2])]
+    else:
+        cmd += ["-vf", "scale=1920:1080:force_original_aspect_ratio=increase,"
+                       "crop=1920:1080"]
+    cmd += ["-frames:v", "1", "-q:v", "3", out]
+    subprocess.run(cmd, check=True, timeout=60)
+    with open(out, "rb") as f:
+        return base64.b64encode(f.read()).decode("ascii")
+
+
+def _line_prompt(text):
+    return ("The woman in the image, exactly as she looks in the image - "
+            "same face, hair, clothes and studio. She looks into the camera "
+            "and, starting right away, explains in clear, warm, natural Hindi "
+            "at a normal conversational pace, like a kind teacher: \"%s\" "
+            "Then she smiles and stays silent. Keep her face, hair and outfit "
+            "identical to the image. %s" % (text.replace('"', "'"), TAIL))
+
+
+def _speech_span(path):
+    """(bolna shuru, bolna khatam) second mein - aage-peechhe ki chuppi hata kar."""
+    import sy_endcard
+    total = sy_endcard._duration(path)
+    a, b = 0.0, total
+    for s0, s1 in _silences(path, -32, 0.25):
+        if s0 <= 0.05:
+            a = max(a, s1 - 0.12)
+        if s1 >= total - 0.05:
+            b = min(b, s0 + 0.25)
+    if b - a < 1.0:
+        return 0.0, total
+    return a, b
+
+
+def _snap(t, sil, lead, win=0.7):
+    """t ko aawaaz ki sabse paas wali chuppi par khiskao (vaakya ke beech na kate)."""
+    best, bd = t, win
+    for s0, s1 in sil:
+        m = lead + (s0 + s1) / 2.0
+        if abs(m - t) < bd:
+            best, bd = m, abs(m - t)
+    return best
+
+
+def _speak_lines(story, video_path, workdir, prep, W, H, rate, ch):
+    """Anchor_planned tukdon ki jagah anchor ke bolte clip. Kitne jude, lauta ta hai."""
+    import json as _json
+    import render_core
+    import sy_anchor
+    import sy_endcard
+    try:
+        shots = _json.loads(story.get("shots") or "[]")
+    except Exception:
+        return 0
+    want = [sh for sh in shots if sh.get("anchor_planned") and not sh.get("file")]
+    if not want:
+        return 0
+    lead = float(prep.get("lead") or render_core.LEAD)
+    voice = os.path.join(workdir, "voice.wav")
+    vdur = sy_endcard._duration(voice)
+    sil = _silences(voice, -30, 0.15) if os.path.exists(voice) else []
+    ref = _frame_b64(prep["clip"], 0.3, workdir)
+
+    repl = []      # (s, e, segment_path)
+    for n, sh in enumerate(want):
+        if _room_left() <= 0:
+            log("aaj ka anchor kota poora - baaki lines studio par")
+            break
+        text = re.sub(r"\s+", " ", str(sh.get("text") or "")).strip()
+        if not text or len(text) > LINE_MAX_CHARS:
+            log("line bahut lambi/khaali (%d akshar) - studio par" % len(text))
+            continue
+        raw = os.path.join(workdir, "line%d_raw.mp4" % n)
+        ok, why = sy_anchor.veo_person_clip(_line_prompt(text), raw,
+                                            image_b64=ref, resolution="1080p")
+        if not ok:
+            log("line clip nahi bani (studio par):", str(why)[:150])
+            continue
+        _note_used()
+        a, b = _speech_span(raw)
+        seg = _cut(raw, a, b, os.path.join(workdir, "line%d.mp4" % n),
+                   workdir, W, H, rate, ch)
+        if not seg:
+            continue
+        s = _snap(float(sh.get("start") or 0), sil, lead)
+        e = _snap(float(sh.get("end") or 0), sil, lead)
+        e = min(e, lead + vdur + 0.2)
+        if e - s < 0.8:
+            continue
+        repl.append((s, e, seg))
+        log("anchor line %d: %.1f-%.1fs ki jagah %.1fs ka clip" % (n + 1, s, e, b - a))
+    if not repl:
+        return 0
+
+    repl.sort()
+    # Ek hi ffmpeg: mukhya video ke tukde + anchor clip, baari-baari.
+    total = sy_endcard._duration(video_path)
+    cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", video_path]
+    filt, labels, k, t = [], [], 0, 0.0
+    for idx, (s, e, seg) in enumerate(repl):
+        if s - t > 0.05:
+            filt.append("[0:v]trim=start=%.3f:end=%.3f,setpts=PTS-STARTPTS[v%d];"
+                        "[0:a]atrim=start=%.3f:end=%.3f,asetpts=PTS-STARTPTS[a%d]"
+                        % (t, s, k, t, s, k))
+            labels.append("[v%d][a%d]" % (k, k))
+            k += 1
+        cmd += ["-i", seg]
+        filt.append("[%d:v]setpts=PTS-STARTPTS[v%d];[%d:a]asetpts=PTS-STARTPTS[a%d]"
+                    % (idx + 1, k, idx + 1, k))
+        labels.append("[v%d][a%d]" % (k, k))
+        k += 1
+        t = e
+    if total - t > 0.05:
+        filt.append("[0:v]trim=start=%.3f,setpts=PTS-STARTPTS[v%d];"
+                    "[0:a]atrim=start=%.3f,asetpts=PTS-STARTPTS[a%d]" % (t, k, t, k))
+        labels.append("[v%d][a%d]" % (k, k))
+        k += 1
+    filt.append("%sconcat=n=%d:v=1:a=1[vo][ao]" % ("".join(labels), k))
+    out = os.path.join(workdir, "with_lines.mp4")
+    cmd += ["-filter_complex", ";".join(filt), "-map", "[vo]", "-map", "[ao]",
+            "-c:v", "libx264", "-preset", "medium", "-crf", "21",
+            "-maxrate", "2400k", "-bufsize", "5000k",
+            "-pix_fmt", "yuv420p", "-r", str(sy_endcard.FPS),
+            "-c:a", "aac", "-b:a", "192k", "-ar", str(rate), "-ac", str(ch),
+            "-movflags", "+faststart", out]
+    subprocess.run(cmd, cwd=workdir, check=True, timeout=900)
+    if not sy_endcard._ok_file(out, 100000):
+        return 0
+    import shutil
+    shutil.copyfile(out, video_path)
+    return len(repl)
 
 
 # ------------------------------------------------------------ bahar ka
 
-def make(story, video_path, workdir):
-    """Mukhya video ke aage anchor ka shuru wala tukda jod do.
+def prepare(story, workdir):
+    """RENDER SE PEHLE: shuru/vida wala anchor clip bana lo.
 
-    Lauta ta hai vida wala tukda (sy_endcard.append ko presenter_override
-    ke roop mein dena hai), ya "" - tab kuch nahi juda. Kabhi throw nahi."""
+    Pehle banana isliye ki render ko pata ho ki aage anchor judegi - tab
+    wo channel ka title card nahi lagata (render_core.set_intro_mode), aur
+    anchor ke "namaste..." ke turant baad asli baat shuru hoti hai.
+    dict lauta ta hai, ya None. Kabhi throw nahi."""
     beat = str(story.get("beat") or "")
     if beat not in BEATS or not enabled():
-        return ""
+        return None
     try:
         import sy_anchor
-        import sy_endcard
         if not sy_anchor.sa_path():
             log("service account nahi mili - anchor nahi")
-            return ""
+            return None
         if _room_left() <= 0:
             log("aaj ka anchor kota poora - is video mein anchor nahi")
-            return ""
+            return None
+        cfg.put_ffmpeg_on_path()
+        workdir = os.path.abspath(workdir)
+        clip, how = _make_clip(beat, workdir)
+        if not clip:
+            log("anchor clip nahi bani:", how[:200])
+            return None
+        _note_used()
+        cut = _split_point(clip)
+        if cut is None:
+            log("clip mein beech ki chuppi nahi mili - do line alag nahi ho "
+                "sakti, is video mein anchor nahi")
+            return None
+        try:
+            thumb_still(clip, cut, workdir)
+        except Exception as e:
+            log("thumbnail ki tasveer nahi nikli (thumbnail pehle jaisa):", e)
+        return {"clip": clip, "cut": cut, "how": how}
+    except Exception as e:
+        log("anchor mein gadbad (bina anchor ke aage):", str(e)[:200])
+        return None
+
+
+def attach(story, video_path, workdir, prep):
+    """RENDER KE BAAD: beech ki lines, phir aage shuru wala tukda.
+    Vida wala tukda lauta ta hai (end-card ke peeche), ya "". Kabhi throw nahi."""
+    if not prep:
+        return ""
+    try:
+        import sy_endcard
         cfg.put_ffmpeg_on_path()
         workdir = os.path.abspath(workdir)
         video_path = os.path.abspath(video_path)
         W, H, rate, ch = sy_endcard._probe(video_path)
         if H > W:
             return ""
-
-        clip, how = _make_clip(beat, workdir)
-        if not clip:
-            log("anchor clip nahi bani:", how[:200])
-            return ""
-        _note_used()
-
-        cut = _split_point(clip)
-        if cut is None:
-            log("clip mein beech ki chuppi nahi mili - do line alag nahi ho "
-                "sakti, is video mein anchor nahi")
-            return ""
+        clip, cut = prep["clip"], prep["cut"]
         total = sy_endcard._duration(clip)
         intro = _cut(clip, 0.0, cut, os.path.join(workdir, "explainer_intro.mp4"),
                      workdir, W, H, rate, ch)
@@ -388,21 +656,30 @@ def make(story, video_path, workdir):
                      workdir, W, H, rate, ch, fade_in=True)
         if not intro or not outro:
             return ""
-        # Thumbnail ke liye usi anchor ki ek tasveer - us chuppi wale pal ki,
-        # jab wo bolna rok kar muskura rahi hoti hai (munh adhkhula nahi).
         try:
-            thumb_still(clip, cut, workdir)
+            n = _speak_lines(story, video_path, workdir, prep, W, H, rate, ch)
+            if n:
+                log("%d line anchor ne boli" % n)
         except Exception as e:
-            log("thumbnail ki tasveer nahi nikli (thumbnail pehle jaisa):", e)
-
+            log("beech ki lines nahi judi (studio par hi):", str(e)[:200])
         joined = os.path.join(workdir, "with_explainer.mp4")
         if not sy_endcard._join(intro, video_path, joined, workdir):
             log("shuru ka tukda jud nahi paya - anchor nahi")
             return ""
         import shutil
         shutil.copyfile(joined, video_path)
-        log("anchor laga (%s): shuru %.1fs, vida %.1fs" % (how, cut, total - cut))
+        log("anchor laga (%s): shuru %.1fs, vida %.1fs" % (prep.get("how"), cut, total - cut))
         return outro
     except Exception as e:
         log("anchor mein gadbad (bina anchor ke aage):", str(e)[:200])
         return ""
+
+
+def make(story, video_path, workdir):
+    """Purana ek-kadam rasta (render ke baad sab kuch). Naya rasta:
+    prepare() render se pehle, attach() baad mein - sy_produce yahi karta hai."""
+    prep = prepare(story, workdir)
+    if prep:
+        import render_core
+        prep["lead"] = render_core.LEAD
+    return attach(story, video_path, workdir, prep)

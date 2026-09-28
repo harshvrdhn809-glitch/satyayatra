@@ -232,12 +232,14 @@ def _speak_sarvam(script, workdir, style=""):
         raise RuntimeError("script khaali hai")
 
     pace, fixed = current_pace()
-    if style == "teacher":
-        # Shikshak wala andaaz: thoda thehra hua. Bahut dheema nahi - 0.70
-        # par aawaaz toot-ti hai (upar DEFAULT_PACE ki tippani).
-        pace = max(PACE_FLOOR, min(PACE_CEIL,
-                   _flt("sarvam", "teacher_pace", 0.92)))
-        fixed = True
+    # SHIKSHAK WALA ANDAAZ AB SIRF SCRIPT MEIN HAI, AAWAAZ MEIN NAHI (Sep 2026)
+    #
+    # Pehle gyan/kaam/yojana/tech par pace 0.92 kar di jaati thi, "thodi
+    # thehri aawaaz" ke liye. Harshvardhan ne suna aur kaha: aawaaz robotic
+    # ho gayi. Wahi purani seekh dobara: Sarvam 1.0 par hi natural hai,
+    # usse kheenchna use dheema nahi, bejaan banata hai (upar DEFAULT_PACE
+    # ki tippani). Apnapan shabdon aur vaakyon se aata hai, raftaar ghata
+    # kar nahi - isliye ab style se aawaaz ka koi naap nahi badalta.
     log("sarvam: %d tukde, pace %.2f%s%s" % (len(chunks), pace,
         " (haath se)" if fixed else "", " [shikshak]" if style == "teacher" else ""))
 
@@ -293,11 +295,9 @@ def _speak_elevenlabs(script, workdir, style=""):
     stability = _flt("elevenlabs", "stability", 0.5)
     similarity = _flt("elevenlabs", "similarity_boost", 0.75)
     speed = max(0.7, min(1.2, _flt("elevenlabs", "speed", 1.0)))
-    if style == "teacher":
-        # Kam stability = zyada utaar-chadhaav, zyada apnapan bhari aawaaz;
-        # thodi dheemi raftaar = samjhaane wala thehraav.
-        stability = _flt("elevenlabs", "teacher_stability", 0.35)
-        speed = max(0.7, min(1.2, _flt("elevenlabs", "teacher_speed", 0.94)))
+    # Shikshak wala andaaz yahan bhi sirf script mein - pehle stability 0.35
+    # aur speed 0.94 kar dete the, aur usse aawaaz robotic/ajeeb ho gayi
+    # (Sep 2026, Harshvardhan ki shikayat). Ab har beat par wahi naap.
 
     chunks = split_script(script, ELEVEN_CHUNK)
     if not chunks:
@@ -409,9 +409,9 @@ def speak(script, workdir, style=""):
     tab bhi yahi chalega - purana rawaiya bina config.ini badle bacha
     rehta hai) ya "elevenlabs".
 
-    style="teacher" - khabar ke alawa (yojana/kaam/gyan/tech) ke liye:
-    thodi thehri, zyada apnapan bhari aawaaz. Naap config.ini mein
-    ([sarvam] teacher_pace, [elevenlabs] teacher_stability/teacher_speed)."""
+    style - ab sirf log ke liye. Shikshak wala andaaz script (sy_ingest
+    TEACHER_STYLE) mein hai; aawaaz ka naap har beat par ek jaisa, kyunki
+    naap badalne se aawaaz robotic ho gayi thi."""
     provider = (cfg.get("tts", "provider") or "sarvam").strip().lower()
     if provider == "elevenlabs":
         return _speak_elevenlabs(script, workdir, style)
