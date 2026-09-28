@@ -56,6 +56,7 @@ COLUMNS = [
     ("photo_reason", "TEXT"),
     ("photo_queries", "TEXT"),   # JSON list
     ("is_person", "INTEGER"),    # khabar ka kendra koi prasiddh vyakti hai?
+    ("people_en", "TEXT"),       # un sarvajanik logon ke naam (JSON list, angrezi)
     ("shots", "TEXT"),           # JSON: script ke tukde + har tukde ka drishya
 
     # Media

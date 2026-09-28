@@ -83,6 +83,8 @@ AD_RULES = "\n".join([
     'Agar khabar ka kendra koi jaana-pehchana SARVAJANIK vyakti hai - koi mantri, mukhyamantri, pradhanmantri, nyayadhish, bada khiladi, kisi badi sanstha ka pramukh - to isPerson true kijiye aur photoQueries mein pehli khoj unka POORA NAAM angrezi mein likhiye.',
     'Kyun: aise logon ki sahi licence wali tasveerein Wikimedia Commons par maujood hoti hain. Itni badi khabar ko sirf likhe hue text par chhod dena sampadakiy galti hai - darshak wo chehra dekhna chahta hai jiski baat ho rahi hai.',
     '',
+    'peopleEn: khabar ke KENDRA ke sarvajanik log - POORA NAAM angrezi mein, zyada se zyada do (jaise ["Anahat Singh"]). Khiladi jo desh ya rajya ke liye khelte/medal jeette hain, kalakar, netaa, adhikari (pad ke naate) - ye sab sarvajanik hain, UMAR CHAHE KUCH BHI HO. Kasauti: kya is vyakti ka apna Wikipedia lekh ho sakta hai? Haan to naam likhiye. Khabar ka hook aksar wahi chehra hota hai - uske bina video bekaar lagti hai. Aam nagrik, aaropi, peedit, gawah ka naam KABHI nahi - tab khaali list.',
+    '',
     'NIJI VYAKTI - iska ulta:',
     'Jo vyakti sarvajanik nahi hai - aam nagrik, aaropi, peedit, gawah, karmchari, chhatra - unka naam khoj mein KABHI mat daaliye aur unka chehra kabhi mat dikhaiye. isPerson false rakhiye aur vishay ka drishya dikhaiye (school ki imaarat, adalat, thana, sadak).',
     '',
@@ -106,6 +108,7 @@ AD_SHAPE = {
     "keyFactHi": "सबसे ठोस बात, 22 अक्षर तक",
     "ghost": "सिर्फ जगह का नाम, देवनागरी में",
     "isPerson": False,
+    "peopleEn": ["kendra ke sarvajanik vyakti ka poora naam, angrezi mein"],
     "wantsPhoto": True,
     "photoReason": "ek line - kya dikhana chahiye aur kyun",
     "photoQueries": ["drishya ya naam, angrezi mein 2-4 shabd", "doosri koshish", "teesri koshish"],
@@ -131,7 +134,7 @@ def art_direction(story):
         "key_fact": "", "ghost": _place(story["headline_hi"]) or "",
         "thumb_entity": "", "thumb_text": "", "thumb_style": "slab",
         "wants_photo": 0, "photo_reason": "art director se jawab nahi mila",
-        "photo_queries": "[]", "is_person": 0,
+        "photo_queries": "[]", "is_person": 0, "people_en": "[]",
     }
     user = "\n".join([
         "KHABAR",
@@ -170,8 +173,27 @@ def art_direction(story):
         "wants_photo": 1 if (j.get("wantsPhoto") is True and queries) else 0,
         "photo_reason": str(j.get("photoReason") or "")[:160],
         "photo_queries": json.dumps(queries, ensure_ascii=False),
-        "is_person": 1 if j.get("isPerson") is True else 0,
+        "is_person": 1 if (j.get("isPerson") is True or _people_list(j)) else 0,
+        "people_en": json.dumps(_people_list(j), ensure_ascii=False),
     }
+
+
+def _people_list(j):
+    out = []
+    for n in (j.get("peopleEn") or [])[:2]:
+        n = re.sub(r"\s+", " ", str(n or "")).strip()
+        # Kam se kam do shabd - ek shabd par galat chehra aa sakta hai
+        # (portrait() bhi yahi maangta hai).
+        if len(n) >= 4 and " " in n and n.lower() not in (x.lower() for x in out):
+            out.append(n[:60])
+    return out
+
+
+def story_people(story):
+    try:
+        return [str(n) for n in json.loads(story.get("people_en") or "[]") if n]
+    except Exception:
+        return []
 
 
 # ------------------------------------------------------------ shot list
@@ -243,7 +265,7 @@ SHOT_RULES = "\n".join([
     'AAM LOG - inka chehra KABHI NAHI.',
     'Isme aate hain: aam nagrik, aaropi, peedit, gawah, chhatra, mareez, aur koi bhi vyakti jo sirf is ghatna ki wajah se khabar mein hai.',
     'Inka naam khoj mein kabhi mat likhiye. Unke tukde par jagah, sanstha ya cheez dikhaiye - aadmi nahi.',
-    'Shak ho ki vyakti sarvajanik hai ya nahi, to aam maan lijiye aur naam mat likhiye.',
+    'Shak ho ki vyakti sarvajanik hai ya nahi, to aam maan lijiye aur naam mat likhiye. Par kasauti yaad rakhiye: jis vyakti ka apna Wikipedia lekh ho sakta hai (desh/rajya ke liye khelne wala khiladi - umar chahe kam ho, kalakar, netaa) wo sarvajanik hai - uska tukda "people" aur pehli khoj uska poora naam.',
     'Kisi doosri jagah ki tabahi ko is khabar ki tabahi banakar kabhi mat dikhaiye.',
     '',
     'type: place | institution | people | object | document | map - inhi mein se ek.',
@@ -684,7 +706,83 @@ def portrait(name):
             fname = sy_net.urllib.parse.unquote(fname)
             return src, (_portrait_credit(fname) if fname
                          else "चित्र: Wikimedia Commons")
-    return "", ""
+    return _wikidata_portrait(name, parts)
+
+
+WIKIDATA_API = "https://www.wikidata.org/w/api.php"
+
+
+def _wikidata_portrait(name, parts):
+    """Wikipedia lekh mein mukhya tasveer na ho, par Wikidata par us vyakti
+    ki tasveer (P18) ho - naye khiladiyon ke saath aksar yahi hota hai.
+    Wahi pehre: label mein naam ka har hissa ho, aur ek hi vyakti mile."""
+    try:
+        sy_net.throttle("wikimedia", WIKI_GAP)
+        d = sy_net.get_json(
+            WIKIDATA_API + "?action=wbsearchentities&format=json&language=en"
+            "&type=item&limit=3&search=" + sy_net.urllib.parse.quote(name),
+            headers=sy_net.wiki_headers(), timeout=30)
+        hits = [h for h in (d.get("search") or [])
+                if all(w in str(h.get("label") or "").lower() for w in parts)]
+        if len(hits) != 1:
+            return "", ""
+        qid = str(hits[0].get("id") or "")
+        sy_net.throttle("wikimedia", WIKI_GAP)
+        e = sy_net.get_json(
+            WIKIDATA_API + "?action=wbgetclaims&format=json&property=P18"
+            "&entity=" + qid, headers=sy_net.wiki_headers(), timeout=30)
+        claims = (e.get("claims") or {}).get("P18") or []
+        fname = str(((claims[0].get("mainsnak") or {}).get("datavalue") or {})
+                    .get("value") or "") if claims else ""
+    except Exception as ex:
+        log("wikidata portrait:", ex)
+        return "", ""
+    if not fname:
+        return "", ""
+    src = ("https://commons.wikimedia.org/wiki/Special:FilePath/"
+           + sy_net.urllib.parse.quote(fname.replace(" ", "_")) + "?width=1600")
+    return src, _portrait_credit(fname)
+
+
+def ensure_people_shots(story, shots):
+    """Khabar ke kendra ka sarvajanik vyakti ho to uska chehra pakka aaye.
+
+    KYUN (Sep 2026): Asian Games ki khabar Anahat Singh par thi, par na
+    video mein unki tasveer aayi na thumbnail mein - "hook hi gayab". Shot
+    list banane wala unhe "shak ho to aam maan lo" wale niyam mein daal
+    gaya, aur people wala tukda bana hi nahi. Ab art director ki peopleEn
+    suchi ke har naam ke liye ek tukda "people" banta hai, pehli khoj wahi
+    naam. Jis tukde ki baat us vyakti par ho (naam aata ho) wahi chuna jaata
+    hai; na mile to - vyakti hi khabar ka kendra ho to pehla, warna doosra.
+    Script ka text nahi badalta, isliye timing waisi hi rehti hai.
+    """
+    names = story_people(story)
+    if not names or not shots:
+        return shots
+    for k, name in enumerate(names):
+        low = name.lower()
+        if any(str(s.get("type") or "") == "people"
+               and low in " ".join(s.get("queries") or []).lower() for s in shots):
+            continue
+        free = [i for i, s in enumerate(shots) if str(s.get("type") or "") != "people"]
+        if not free:
+            break
+        first = low.split()[0]
+        hit = [i for i in free
+               if first in (str(shots[i].get("brief") or "")
+                            + " " + " ".join(shots[i].get("queries") or [])).lower()]
+        if hit:
+            i = hit[0]
+        elif story.get("is_person") and k == 0 and 0 in free:
+            i = 0
+        else:
+            i = free[1] if len(free) > 1 else free[0]
+        sh = shots[i]
+        sh["type"] = "people"
+        sh["queries"] = [name] + [q for q in (sh.get("queries") or []) if q != name][:2]
+        sh["brief"] = (name + " - " + str(sh.get("brief") or ""))[:160]
+        log("  %d. %s ka chehra is tukde par" % (i + 1, name))
+    return shots
 
 
 def commons_photo(query):
@@ -1082,6 +1180,7 @@ def fetch_shots(story, workdir, anchor_slots=0):
         shots = []
     if not shots:
         return []
+    shots = ensure_people_shots(story, shots)
 
     # Khabar ki apni jagah - angrezi mein, taaki khoj mein kaam aaye.
     place = ""
@@ -1239,6 +1338,13 @@ def thumb_art(shots, workdir, story=None):
     (Konark...), phir baaki purane kram se. Khabar par kuch nahi badla.
     """
     order = list(shots or [])
+    # KENDRA KA CHEHRA PEHLE: khabar kisi sarvajanik vyakti par ho aur uski
+    # asli tasveer mili ho, to thumbnail wahi - wahi khabar ka hook hai.
+    names = [n.lower() for n in story_people(story or {})]
+    if names:
+        faces = [sh for sh in order if sh.get("file") and sh.get("type") == "people"
+                 and any(n in " ".join(sh.get("queries") or []).lower() for n in names)]
+        order = faces + [sh for sh in order if sh not in faces]
     link = str((story or {}).get("source_link") or "")
     if "wikipedia.org/wiki/" in link:
         page = link.rsplit("/", 1)[-1].replace("_", " ")
