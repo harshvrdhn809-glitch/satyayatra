@@ -1418,6 +1418,41 @@ def do_update():
     os._exit(0)
 
 
+def do_import_db(file_id, name):
+    """Laptop ki satyayatra.db Telegram par aayi - uska hisaab yahan jodo.
+
+    Cloud nayi database se shuru hua tha, isliye laptop par ban chuke vishay
+    (GPS, chatbot, ...) dobara banne lage. File bhejte hi wo yaad yahan aa
+    jaati hai. Sirf yaad aati hai - laptop ki katar ya offset nahi.
+    """
+    dest = os.path.join(cfg.WORK_ROOT, "laptop-import.db")
+    try:
+        sy_telegram.download(file_id, dest)
+        got = st.import_history(dest)
+    except Exception as e:
+        log("purana hisaab nahi juda:", e)
+        sy_telegram.send_message(
+            "<b>Purana hisaab nahi jud paya</b>\n\n"
+            + sy_telegram._esc(str(e))[:400])
+        return
+    finally:
+        try:
+            os.remove(dest)
+        except OSError:
+            pass
+    log("purana hisaab juda:", got)
+    sy_telegram.send_message(
+        "<b>Laptop ka hisaab jud gaya</b> (%s)\n\n"
+        "Nikal chuki khabrein: %d\n"
+        "Vishayon ki ghadi (GPS, chatbot wagairah): %d\n"
+        "Pehchaani hui khabrein/shirshak: %d / %d\n"
+        "Switch (veo/anchor/...): %d\n"
+        "Katar se hataye dohraav: %d\n\n"
+        "Ab laptop par ban chuke vishay dobara nahi banenge."
+        % (sy_telegram._esc(name), got["khabar"], got["ghadi"], got["seen"],
+           got["titles"], got["switch"], got["hataye"]))
+
+
 def tick_commands():
     """Telegram par type kiye gaye aadesh. Sirf aapki chat se aate hain."""
     # Saade sandesh - reject ki wajah apne shabdon mein.
@@ -1428,6 +1463,8 @@ def tick_commands():
                 log("sandesh aaya par kisi reject se nahi juda:", txt[:60])
         except Exception as e:
             log("feedback sandesh:", e)
+    for file_id, name in sy_telegram.take_documents():
+        do_import_db(file_id, name)
     for c, rest in sy_telegram.take_commands():
         if c in ("/khabar", "/vishay"):
             do_khabar(rest)
@@ -1485,7 +1522,8 @@ def tick_commands():
                 "/haal - abhi kya chal raha hai\n"
                 "/naya - naya code uthao aur dobara chalu ho\n"
                 "/dobara - bas dobara chalu ho\n"
-                "/signin - YouTube ka sign-in phir se")
+                "/signin - YouTube ka sign-in phir se\n"
+                "(laptop ki satyayatra.db file bhejiye - purana hisaab jud jayega)")
         else:
             log("anjaan aadesh:", c)
 

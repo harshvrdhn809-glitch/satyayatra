@@ -488,3 +488,129 @@ if __name__ == "__main__":
         print("  %-10s %d" % (s, count_status(s)))
     print("  yaad rakhi hui khabrein:",
           conn().execute("SELECT COUNT(*) FROM seen").fetchone()[0])
+
+
+# ------------------------------------------------------ purana hisaab jodna
+
+# Ghoomne wale vishayon ki "aakhri baar kab bana" ghadi. Story id ka shuruaati
+# hissa -> kv ki chaabi ka shuruaati hissa.
+_ROTATION = {"gy": "gyan_last_", "tc": "tech_last_", "kb": "kaam_last_",
+             "yj": "scheme_last_"}
+# Telegram ke switch - laptop par /veo on wagairah se lage the.
+_SWITCHES = ("veo_on", "social_on", "bulletin_on", "anchor_on")
+_DONE = ("published", "rejected", "expired", "no_visual")
+
+
+def import_history(path):
+    """Laptop ki satyayatra.db ka hisaab is database mein jodo.
+
+    KYUN: cloud (GitHub Actions) par database nayi shuruaat se bana tha, to
+    use pata hi nahi tha ki laptop par kaunse vishay (GPS, chatbot, ...) aur
+    kaunsi khabrein pehle ban chuki hain - wahi dobara banne lage. Ye
+    function laptop ki file se sirf YAAD uthata hai, kaam nahi:
+
+      - stories: jo laptop par nikal chuki hain (publish/reject/expire)
+        wo yahan bhi 'nikal chuki' maani jaati hain. Yahan wahi id katar
+        mein ho aur abhi bani na ho, to wo hata di jaati hai.
+      - gyan/tech/kaam/yojana ki ghadi: dono mein jo baad ki ho.
+      - seen, titles: khabron ki pehchaan - dono ka jod.
+      - Telegram switch (veo/anchor/...): sirf tab jab yahan pehle se na ho.
+
+    Baaki sab (Telegram offset, upload ginti, katar mein khadi cheezein)
+    jaan-boojhkar nahi liya jaata - wo is machine ka apna chalta hua haal hai.
+
+    Katar mein khadi jo cheez laptop par haal mein ban chuke vishay ki hai,
+    wo bhi hata di jaati hai (status 'expired').
+
+    Lauta ta hai {naam: ginti}.
+    """
+    import sqlite3
+    src = sqlite3.connect("file:%s?mode=ro" % path, uri=True)
+    src.row_factory = sqlite3.Row
+    c = conn()
+    out = {"khabar": 0, "ghadi": 0, "seen": 0, "titles": 0, "switch": 0,
+           "hataye": 0}
+    laptop_last = {}    # sirf LAPTOP ki ghadi - neeche step 4 ke liye
+    try:
+        names = set(r[0] for r in src.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"))
+        if "stories" not in names or "kv" not in names:
+            raise ValueError("ye SatyaYatra ki database nahi lagti")
+
+        # 1) ghadi aur switch
+        for r in src.execute("SELECT k, v FROM kv"):
+            k, v = r["k"], r["v"]
+            try:
+                val = json.loads(v)
+            except Exception:
+                continue
+            if any(k.startswith(p) for p in _ROTATION.values()) \
+                    or k.startswith("trend_last_"):
+                mine = float(kv_get(k, 0) or 0)
+                try:
+                    theirs = float(val or 0)
+                except (TypeError, ValueError):
+                    continue
+                laptop_last[k] = theirs
+                if theirs > mine:
+                    kv_set(k, theirs)
+                    out["ghadi"] += 1
+            elif k in _SWITCHES and kv_get(k) is None:
+                kv_set(k, val)
+                out["switch"] += 1
+
+        # 2) nikal chuki khabrein
+        have = set(n for n, _ in COLUMNS)
+        for r in src.execute(
+                "SELECT * FROM stories WHERE status IN (%s)"
+                % ",".join("?" * len(_DONE)), _DONE):
+            row = {k: r[k] for k in r.keys() if k in have}
+            mine = get(row["story_id"])
+            if mine is None:
+                keys = list(row)
+                c.execute("INSERT OR IGNORE INTO stories (%s) VALUES (%s)"
+                          % (", ".join(keys), ", ".join("?" * len(keys))),
+                          [row[k] for k in keys])
+                out["khabar"] += 1
+            elif mine["status"] in ("pending", "failed", "producing"):
+                update(row["story_id"], status="expired",
+                       error="laptop par pehle ban chuki thi")
+                out["hataye"] += 1
+
+        # 3) pehchaan
+        for tbl, col, key in (("seen", "key", "seen"),
+                              ("titles", "title", "titles")):
+            if tbl not in names:
+                continue
+            for r in src.execute("SELECT %s, at FROM %s" % (col, tbl)):
+                cur = c.execute("INSERT OR IGNORE INTO %s (%s, at) VALUES (?, ?)"
+                                % (tbl, col), (r[0], r[1]))
+                out[key] += cur.rowcount
+        c.commit()
+    finally:
+        src.close()
+
+    # 4) katar mein khadi cheez jiska vishay ab "haal mein bana" dikhta hai.
+    # Dohraav ki seema sy_ingest ke *_REPEAT_DAYS se aati hai.
+    import sy_ingest
+    days = {"gy": sy_ingest.GYAN_REPEAT_DAYS, "tc": sy_ingest.TECH_REPEAT_DAYS,
+            "kb": sy_ingest.KAAM_REPEAT_DAYS, "yj": sy_ingest.SCHEME_REPEAT_DAYS}
+    for r in c.execute("SELECT story_id, created_at FROM stories "
+                       "WHERE status IN ('pending','failed')").fetchall():
+        sid = r[0]
+        pre, _, restid = sid.partition("_")
+        if pre not in _ROTATION or "_" not in restid:
+            continue
+        slug = restid.rsplit("_", 1)[0]
+        # Cloud ki apni ghadi nahi - wo to isi khabar ke saath lagi thi.
+        last = laptop_last.get(_ROTATION[pre] + slug, 0)
+        try:
+            made = time.mktime(time.strptime(r[1], "%Y-%m-%dT%H:%M:%S"))
+        except Exception:
+            made = time.time()
+        # Laptop wali ghadi is khabar ke banne se PEHLE ki ho aur dohraav
+        # ki seema ke andar - matlab ye dohraav hai.
+        if last and last < made and made - last < days[pre] * 86400:
+            update(sid, status="expired", error="laptop par pehle ban chuka vishay")
+            out["hataye"] += 1
+    return out

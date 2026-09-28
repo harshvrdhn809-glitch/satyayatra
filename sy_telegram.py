@@ -9,6 +9,7 @@ import json
 import mimetypes
 import os
 import time
+import urllib.parse
 import uuid
 
 import sy_config as cfg
@@ -263,6 +264,7 @@ def _clear():
 # hai, take_commands() inhe uthata hai. Ek hi getUpdates dono laata hai.
 _cmds = []
 _notes = []     # (saada sandesh, kis sandesh ka reply) - sy_feedback ke liye
+_docs = []      # (file_id, file_name) - aapki bheji .db file (purana hisaab)
 
 
 def take_commands():
@@ -283,6 +285,28 @@ def take_notes():
     out = _notes
     _notes = []
     return out
+
+
+def take_documents():
+    """Aapki bheji hui .db file(en) - ek baar padhi, phir gayi."""
+    global _docs
+    out = _docs
+    _docs = []
+    return out
+
+
+def download(file_id, dest):
+    """Telegram par aayi file dest par utaar do. Bot 20 MB tak utaar sakta hai."""
+    info = sy_net.get_json(_api("getFile") + "?file_id="
+                           + urllib.parse.quote(file_id), timeout=60)
+    fp = str((info.get("result") or {}).get("file_path") or "")
+    if not fp:
+        raise RuntimeError("Telegram ne file ka pata nahi diya")
+    raw = sy_net.fetch("https://api.telegram.org/file/bot%s/%s"
+                       % (cfg.need("telegram", "bot_token"), fp), timeout=120)
+    with open(dest, "wb") as f:
+        f.write(raw)
+    return dest
 
 
 def poll_decisions():
@@ -344,6 +368,12 @@ def poll_decisions():
         if msg:
             txt = str(msg.get("text") or "").strip()
             who = str((msg.get("chat") or {}).get("id") or "")
+            doc = msg.get("document") or {}
+            if doc and who == str(_chat()):
+                name = str(doc.get("file_name") or "")
+                if name.lower().endswith(".db") and doc.get("file_id"):
+                    _docs.append((str(doc["file_id"]), name))
+                continue
             if txt.startswith("/") and who == str(_chat()):
                 # Pehla shabd aadesh, baaki poori baat - "/khabar BRICS
                 # shikhar sammelan" mein vishay hi asli cheez hai.
