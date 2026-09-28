@@ -734,8 +734,34 @@ def save_titles(story_id, j, fallback=""):
     return opts[:3]
 
 
+# Sampadak ne jis wajah se pichhli khabar roki - /khabar wale jawab mein
+# aapko wahi wajah bataane ke liye.
+last_kill_reason = ""
+
+# /khabar - vishay INSAAN ne chuna hai. Ahmiyat ka faisla uska hai, machine
+# ka nahi (Sep 2026, Harshvardhan: "Cockroach Janta Party" wali khabar
+# poore desh mein trend kar rahi thi, har channel chala raha tha, aur
+# sampadak ne "chhoti party, koi wajood nahi" kehkar rok diya tha). Sach
+# ki jaanch (niyam 1-4) waisi hi rehti hai - jhooth ya afwaah aapke kehne
+# se bhi nahi chalegi.
+FORCED_RULES = "\n".join([
+    "ZAROORI - IS VISHAY KO CHANNEL KE SAMPADAK (EK INSAAN) NE KHUD CHUNA HAI.",
+    "Iski ahmiyat ka faisla ho chuka hai, aur wo aapka faisla nahi hai. In "
+    "wajahon se publishable false KABHI mat kijiye:",
+    "- khabar chhoti, kam zaroori ya kam logon ke kaam ki lagti hai;",
+    "- koi party, sanstha ya vyakti chhota, naya, ajeeb ya 'bina wajood' "
+    "ka lagta hai (ho sakta hai wo isi wajah se trend kar raha ho);",
+    "- dikhane layak tasveer kam lagti hai (niyam 6 is khabar par lagu "
+    "NAHI - video studio aur graphics par ban jayegi).",
+    "publishable false SIRF tab: lekh mein is vishay par koi pakka tathya "
+    "hi na ho (sirf afwaah/charcha), ya niyam 1-4 toot-te hon. Tab "
+    "kill_reason mein saaf likhiye ki kaunsa tathya pakka nahi hai.",
+    "Chhoti khabar ho to script chhoti rakhiye - par likhiye zaroor.",
+])
+
+
 def story_from_links(story_id, title, links, sources="",
-                     scope="national", score=14):
+                     scope="national", score=14, forced=False):
     """Ek chune hue vishay par ek khabar bana do. story_id ya "".
 
     Ye run_news() se alag hai aur jaan-boojhkar. run_news feeds tatolta hai
@@ -747,12 +773,15 @@ def story_from_links(story_id, title, links, sources="",
     hai jo sach mein banni hai. Pehle har pending khabar par lag chuka hota
     tha, chahe wo kabhi chale ya na chale.
     """
+    global last_kill_reason
+    last_kill_reason = ""
     links = [l for l in (links or []) if l]
     if not links:
         return ""
     url, text = pick_article(links)
     if not text:
         log("  is vishay par poora lekh nahi khula - chhoda")
+        last_kill_reason = "koi bhi lekh poora nahi khula"
         return ""
 
     head = ["SOURCE MATERIAL", "",
@@ -784,6 +813,8 @@ def story_from_links(story_id, title, links, sources="",
             "- Sirf afwaah ya kisi ke 'post' par tiki khabar ho to "
             "publishable false kar dijiye.",
             "", "Bilingual bulletin scripts likhiye."]
+    if forced:
+        head += ["", FORCED_RULES]
 
     j = sy_ai.ask_json(EDITOR_SYSTEM, "\n".join(head), max_tokens=5000)
     st.mark_seen(story_id)
@@ -793,11 +824,14 @@ def story_from_links(story_id, title, links, sources="",
         log("  sampadak ka jawab JSON nahi tha")
         return ""
     if j.get("publishable") is not True:
-        log("  sampadak ne roka:", str(j.get("kill_reason") or "")[:120])
+        last_kill_reason = str(j.get("kill_reason") or "")
+        log("  sampadak ne roka:", last_kill_reason[:120])
         return ""
     script = re.sub(r"\s+", " ", str(j.get("script_hi") or "")).strip()
-    if len(script) < 200:
+    # Aapki maangi khabar chhoti ho sakti hai - bas khaali na ho.
+    if len(script) < (80 if forced else 200):
         log("  script bahut chhoti")
+        last_kill_reason = "script bahut chhoti bani"
         return ""
 
     st.add_story({

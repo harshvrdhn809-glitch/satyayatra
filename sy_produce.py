@@ -345,6 +345,11 @@ def visual_verdict(story, shots, photo_source=""):
     return True, "", line
 
 
+def asked_by_you(story_id):
+    """/khabar se aapki maangi khabar? (sy_main.do_khabar "mera_" id deta hai)"""
+    return str(story_id or "").startswith("mera_")
+
+
 def produce(story):
     """Ek khabar ko video bana kar Telegram par bhej do. True/False."""
     sid = story["story_id"]
@@ -367,7 +372,10 @@ def produce(story):
         # yojana/Reel/bulletin ko ye nahi chhoota - bulletin apni hi
         # sampadak-jaanch (sy_bulletin.py niyam 7) se guzarti hai, aur
         # baaki par ye shikayat thi hi nahi.
-        if str(story.get("beat") or "") in ("local", "news"):
+        # /khabar se aapki maangi khabar ("mera_") par ahmiyat ki ye
+        # jaanch nahi lagti - wo faisla aap le chuke hain.
+        if str(story.get("beat") or "") in ("local", "news") \
+                and not asked_by_you(sid):
             ok_reach, why_reach = sy_ingest.audience_relevant(
                 story.get("headline_hi"), story.get("script_hi"))
             if not ok_reach:
@@ -454,6 +462,11 @@ def produce(story):
         # dekhni bhi nahi padti jo aap waise bhi reject karte.
         ok, why, vline = visual_verdict(story, shots, source)
         log("drishya:", vline)
+        if not ok and asked_by_you(sid):
+            # Aapki maangi khabar tasveer kam hone par bhi banti hai -
+            # khaali jagah studio/graphics bharte hain.
+            log("drishya kam (%s) - par aapki maangi khabar hai, ban rahi hai" % why)
+            ok = True
         if not ok:
             log("ROKA -", why)
             st.update(sid, status="no_visual", error=why)

@@ -1067,7 +1067,7 @@ def do_khabar(term):
         # score 20 - khabar ke aam 16 se upar. Isse ye katar mein bhi
         # peeche nahi padti agar force wali baari kisi wajah se chhoot jaye.
         made = sy_ingest.story_from_links(
-            sid, term, links, scope="national", score=20)
+            sid, term, links, scope="national", score=20, forced=True)
     except Exception as e:
         log("banane mein gadbad:", e)
         sy_telegram.send_message(
@@ -1076,11 +1076,14 @@ def do_khabar(term):
         return
 
     if not made:
+        why = sy_ingest.last_kill_reason or "log mein dekhiye"
         sy_telegram.send_message(
-            "Ye vishay chhodna pada.\n\n"
-            "Wajah aam taur par do mein se ek hoti hai: poora lekh khula "
-            "nahi, ya jo mila wo pakki khabar nahi thi (sirf charcha ya "
-            "afwaah). Log mein poori wajah likhi hai.")
+            "Ye vishay chhodna pada.\n\n<b>Wajah:</b> "
+            + sy_telegram._esc(why)[:500]
+            + "\n\nAapke maange vishay ko ahmiyat ke naam par nahi roka "
+              "jaata - sirf tab jab lekh na khule ya baat pakki na ho. "
+              "Doosre shabdon ya angrezi mein dobara /khabar bhej kar "
+              "dekhiye.")
         return
 
     row = st.get(made) or {}
