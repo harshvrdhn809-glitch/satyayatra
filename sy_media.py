@@ -824,6 +824,133 @@ def commons_photo(query):
     return "", ""
 
 
+# --------------------------------------------- sarvajanik vyakti: aur srot
+#
+# Sep 2026, Harshvardhan: "bahut famous logon ke footage ke Indian free
+# sources jo jo hain sabko jod lijiye". Sirf wahi srot jinka licence ya
+# niti saaf kehti hai ki bina ijaazat, srot ka naam dekar chhap sakte hain:
+#
+#   - Wikimedia Commons par us vyakti ki APNI category ("Category:Anahat
+#     Singh") - poore-text khoj se kahin pakki; tasveer aur video dono.
+#     PIB/PMO ki bahut si tasveerein wahan GODL-India licence mein pehle se
+#     hain.
+#   - PIB (pib.gov.in): "Material featured on this website may be
+#     reproduced free of charge ... no need for any prior approval"
+#     (pib.gov.in ki Copyright Policy). Teesre paksh ki cheez is chhoot mein
+#     nahi aati.
+#   - PM India (pmindia.gov.in): muft, sahi roop mein, srot ka naam saaf
+#     dekar; apmaanjanak ya bhramak sandarbh mein nahi.
+#
+# Jo NAHI joda, aur kyun: DD News / Prasar Bharati, Sansad TV, akhbaar aur
+# agency (ANI/PTI) - inka copyright surakshit hai; YouTube se utaarna uske
+# niyamon ke khilaaf hai. Inse video par copyright claim/strike aata hai.
+
+def _commons_category(name, want_video):
+    """Commons par "Category:<Naam>" ki files. (url, credit) ya ("", "")."""
+    name = re.sub(r"\s+", " ", str(name or "")).strip()
+    if len(name) < 4 or " " not in name:
+        return "", ""
+    try:
+        data = _wiki(
+            "https://commons.wikimedia.org/w/api.php?action=query&format=json"
+            "&generator=categorymembers&gcmtype=file&gcmlimit=25"
+            "&prop=imageinfo&iiprop=url|size|mime|extmetadata&iiurlwidth=1600"
+            "&gcmtitle=" + sy_net.urllib.parse.quote("Category:" + name))
+    except Exception as e:
+        log("commons category:", e)
+        return "", ""
+    pages = sorted(((data.get("query") or {}).get("pages") or {}).values(),
+                   key=lambda p: int(p.get("index") or 0))
+    for p in pages:
+        for ii in (p.get("imageinfo") or []):
+            mime = str(ii.get("mime") or "")
+            url = str(ii.get("url") or "")
+            if want_video:
+                if not mime.startswith("video/"):
+                    continue
+                if int(ii.get("size") or 0) > MAX_CLIP_MB * 1024 * 1024:
+                    continue
+            else:
+                if not _is_pic_url(url):
+                    continue
+                url = str(ii.get("thumburl") or url)
+            meta = ii.get("extmetadata") or {}
+            artist = re.sub(r"<[^>]+>", "",
+                            str((meta.get("Artist") or {}).get("value") or "")).strip()
+            lic = str((meta.get("LicenseShortName") or {}).get("value") or "")
+            credit = ("फुटेज: " if want_video else "चित्र: ") + (artist or "Wikimedia Commons")
+            if lic:
+                credit += " / " + lic
+            return url, credit[:120]
+    return "", ""
+
+
+def commons_person_photo(name):
+    return _commons_category(name, want_video=False)
+
+
+def commons_person_clip(name):
+    return _commons_category(name, want_video=True)
+
+
+# Sarkari safhe jinki niti muft chhaapne deti hai: (domain, credit, tasveer
+# ke pate ka pehchaan-chinh).
+GOV_SITES = (
+    ("pib.gov.in", "चित्र: PIB, भारत सरकार", ("static.pib.gov.in", "/writereaddata/")),
+    ("pmindia.gov.in", "चित्र: pmindia.gov.in", ("/wp-content/uploads/",)),
+)
+_GOV_SKIP = re.compile(r"logo|icon|emblem|banner|sprite|flag|social|share|arrow|"
+                       r"g20|azadi|digital|swachh|footer|header", re.I)
+
+
+def gov_photo(name):
+    """PIB / PM India ke kisi safhe se us vyakti ki tasveer. (url, credit)
+
+    Safha dhoondhna: GDELT/Bing se "<naam> site:<domain>". Pehra: safhe ke
+    text mein naam ka har hissa hona chahiye - warna koi aur safha. Tasveer
+    kaunsi: us site ke apne upload folder ki pehli badi jpg/png, logo/icon
+    chhod kar. Chehra kiska hai ye vision gate aage dekhta hai (brief mein
+    naam hota hai)."""
+    name = re.sub(r"\s+", " ", str(name or "")).strip()
+    if len(name) < 4 or " " not in name:
+        return "", ""
+    parts = [w for w in name.lower().split() if len(w) > 2]
+    try:
+        import sy_trend
+    except Exception:
+        return "", ""
+    for domain, credit, marks in GOV_SITES:
+        links = []
+        try:
+            links = sy_trend._gdelt('"%s" domain:%s' % (name, domain), timespan="3m")
+        except Exception as e:
+            log("gov photo (gdelt):", e)
+        if not links:
+            try:
+                links = sy_trend._bing_links("%s site:%s" % (name, domain))
+            except Exception as e:
+                log("gov photo (bing):", e)
+        links = [u for u in links if sy_net.host(u).endswith(domain)][:3]
+        for page in links:
+            try:
+                html = sy_net.get_text(page, timeout=40)
+            except Exception as e:
+                log("gov photo safha:", e)
+                continue
+            text = re.sub(r"<[^>]+>", " ", html).lower()
+            if not all(w in text for w in parts):
+                continue
+            for src in re.findall(r"""<img[^>]+src=["']([^"']+)["']""", html, re.I):
+                src = sy_net.urllib.parse.urljoin(page, src.strip())
+                low = src.lower()
+                if not any(m in low for m in marks) or _GOV_SKIP.search(low):
+                    continue
+                if not re.search(r"\.(jpe?g|png)(\?|$)", low):
+                    continue
+                return src, credit
+    return "", ""
+
+
 def commons_clip(query):
     """Wikimedia Commons par CHALTI HUI footage.
 
@@ -978,8 +1105,16 @@ def _shot_plan(queries, shot_type="", place=""):
     # Aam nagrik ka naam yahan aata hi nahi - art director use naam se
     # likhta hi nahi (SHOT_RULES dekhiye).
     if str(shot_type or "").lower() == "people":
+        # Pehli khoj us vyakti ka poora naam hoti hai (SHOT_RULES,
+        # ensure_people_shots). Chalti footage mile to wo sabse pehle -
+        # chehra bolta/chalta dikhe to tasveer se kahin zyada pakadta hai.
+        if queries:
+            plan.append(("commons_video", commons_person_clip, queries[0]))
         for q in queries:
             plan.append(("commons", portrait, q))
+        if queries:
+            plan.append(("commons", commons_person_photo, queries[0]))
+            plan.append(("gov", gov_photo, queries[0]))
 
     # Pehle wo teen jagah jahan tasveer ASLI cheez ki hoti hai. Commons ki
     # chalti footage bhi yahin aati hai - wo stock nahi hai, wo asli
