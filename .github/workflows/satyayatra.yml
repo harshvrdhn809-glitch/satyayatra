@@ -39,7 +39,12 @@ jobs:
   run:
     runs-on: ubuntu-24.04
     # Render aur YouTube sign-in ka intezaar mila kar bhi isse zyada nahi.
-    timeout-minutes: 120
+    # 120 se 180: lambi video (sy_long.py) ka render ek hi run mein hota
+    # hai - aawaaz + 10 minute ka render + end-card + jhalak ~20-30 minute,
+    # usi run mein chhoti video bhi ban sakti hai, aur 1-2 GB ki media
+    # potli kholna/bandhna bhi. Baaki lambe kaam (drishya, cartoon) har run
+    # mein [long] work_minutes tak hi chalte hain.
+    timeout-minutes: 180
     env:
       TZ: Asia/Kolkata          # bulletin ke ghante wagairah India ke samay mein
       PYTHONUTF8: '1'

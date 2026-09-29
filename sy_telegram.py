@@ -397,7 +397,9 @@ def poll_decisions():
         # ok/no  -> bani hui video par faisla
         # pk/sk  -> banane se PEHLE vishay ka chunav (story_id = "slate:index")
         # fb     -> reject ki wajah ka button (story_id = "code|story_id")
-        if verdict in ("ok", "no", "pk", "sk", "fb"):
+        # lk/lx/la/lr -> lambi video (sy_long): mudda chuna / aaj nahi /
+        #           jhalak par approve / reject
+        if verdict in ("ok", "no", "pk", "sk", "fb", "lk", "lx", "la", "lr"):
             out.append((story_id, verdict, str(cq.get("id") or ""),
                         cq.get("message") or {}))
     if last != offset:
