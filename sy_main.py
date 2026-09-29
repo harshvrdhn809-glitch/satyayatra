@@ -73,7 +73,13 @@ def in_flight_count():
     """Kitni video is waqt 'ban rahi', 'jawab ka' ya 'upload ka' intezaar
     kar rahi hain - inmein se har ek jald hi ek upload-baari maangegi."""
     return (st.count_status("producing") + st.count_status("awaiting")
-            + st.count_status("approved"))
+            + st.count_status("approved") + _long_in_flight())
+
+
+def _long_in_flight():
+    """Lambi video (sy_long) apne status mein banti/rukti hai - wo bhi din
+    ki 4 wali ginti mein ek jagah leti hai (Harshvardhan, Sep 2026)."""
+    return st.count_status("lv_work") + st.count_status("lv_awaiting")
 
 
 def production_allowed():
@@ -882,8 +888,22 @@ def tick_produce():
         st.retry_soon("produce", produce_minutes(), 10)
 
 
+def tick_long():
+    """Lambi video (8-10 minute) - poora kaam sy_long.py mein."""
+    import sy_long
+    sy_long.tick()
+
+
 def tick_decisions():
     for sid, verdict, cb_id, message in sy_telegram.poll_decisions():
+        # LAMBI VIDEO ke button - apni alag file, apna hisaab.
+        if verdict in ("lk", "lx", "la", "lr"):
+            try:
+                import sy_long
+                sy_long.on_button(sid, verdict, cb_id, message)
+            except Exception as e:
+                log("lambi video ka button:", e)
+            continue
         # REJECT KI WAJAH ka button - video par faisla nahi, sirf darj karna.
         if verdict == "fb":
             try:
@@ -1481,6 +1501,9 @@ def tick_commands():
             do_bulletin(rest)
         elif c in ("/anchor", "/enkar"):
             do_anchor(rest)
+        elif c in ("/lambi", "/long"):
+            import sy_long
+            sy_long.do_command(rest)
         elif c in ("/update", "/naya"):
             log("aadesh:", c)
             do_update()
@@ -1521,6 +1544,7 @@ def tick_commands():
                 "/bulletin mirzapur|prayagraj|up - abhi ek banao\n"
                 "/anchor on | off - bulletin ke intro/outro par AI anchor\n"
                 "/anchor test - anchor ki jhalak, bina bulletin banaye\n"
+                "/lambi - lambi video ka haal | /lambi abhi | on | off | radd\n"
                 "/kyun &lt;baat&gt; - pichhle reject ki wajah likho\n"
                 "/haal - abhi kya chal raha hai\n"
                 "/naya - naya code uthao aur dobara chalu ho\n"
@@ -1730,8 +1754,11 @@ def one_round():
     # tick_offer, tick_produce se PEHLE: pehle vishay ka chunav aapke
     # paas jaata hai, aur jawab aane tak tick_produce khud ruk jaata
     # hai (wahan OFFER_KEY ki jaanch hai).
+    # tick_long sabse aakhir mein: uska ek kadam 20-30 minute le sakta hai,
+    # isliye pehle chhoti video ke jawab/upload nipat jaayein.
     for step in (tick_decisions, tick_commands, tick_bulletin,
-                 tick_ingest, tick_offer, tick_produce, tick_upload):
+                 tick_ingest, tick_offer, tick_produce, tick_upload,
+                 tick_long):
         try:
             step()
         except Exception:

@@ -128,6 +128,61 @@ wali run ka intezaar kar lijiye.
 
 ---
 
+## Lambi video (8-10 minute) - `sy_long.py`
+
+Ek din chhod kar ek lambi video: us mudde ki A se Z jaankari jo us waqt
+Google Trends, YouTube, X (Twitter) aur akhbaaron mein - sab jagah - charcha
+mein ho. Settings `config.cloud.ini` ke `[long]` mein.
+
+**Kaise chalti hai**
+
+1. `start_hour` (7 baje) ke baad Telegram par 2-3 mudde aate hain, har ek ke
+   saath ye ki wo kahan-kahan trend kar raha hai. Button dabaiye. 60 minute
+   jawab na aaye to sabse upar wala khud chuna jaata hai. "Aaj lambi video
+   nahi" dabane par kal phir poochha jaata hai.
+2. 6-10 akhbaar ke lekh + Wikipedia ki prishthbhoomi se Claude apni script
+   likhta hai (hook, poori kahani, timeline, kaun-kaun, dono paksh, aankde,
+   asar, aage kya). Ek alag jaanch har vaakya ko srot se milati hai.
+3. 40-60 drishya: pehle asli tasveer/footage. Jahan na mile wahan Veo ka
+   prateekatmak 2D cartoon, screen par "AI चित्रण". Cartoon mein kalpanik
+   kirdaar ho sakte hain, par kisi asli vyakti ki shakl kabhi nahi.
+4. Render ke baad Telegram par **chhoti jhalak** (480p, 50 MB se kam - bot
+   isse badi file nahi bhej sakta; poori na samaye to pehle 3 minute),
+   thumbnail aur YouTube chapters. **✅ Publish** dabate hi POORI video
+   (1080p) YouTube par unlisted jaati hai. 24 ghante jawab na aaye to
+   video chhod di jaati hai (publish nahi).
+
+Ye kaam **kai run mein** banta hai (mudda → script → drishya → cartoon →
+render). Poore kaam mein aam taur par 2-5 ghante lagte hain - approval
+wala sandesh usi din dopahar tak aa jaana chahiye. `/lambi` likh kar haal
+dekhiye.
+
+**Din ki ginti:** lambi video bhi `max_uploads_per_day` (4) mein ginti hai.
+
+**Kharch (andaaza):** Veo cartoon sirf un tukdon par jinka asli drishya na
+mile - aam taur par 10-25 clip, har clip 8 second. `veo-3.1-fast` par bina
+aawaaz ~$0.10/second yaani ~$0.80 prati clip - ek lambi video par lagbhag
+$8-20 (Google Cloud credit se). Pakka daam Google Cloud ki Vertex AI pricing
+par dekhiye. Chhat: `veo_max_per_video` (40). Iske alawa Claude (script,
+jaanch, shot list, tasveer-jaanch) aur aawaaz (~8,000 akshar) ka kharch.
+
+**Band/chalu:** `/lambi off` / `/lambi on`. Sirf cartoon rokna ho to
+`[long] veo = 0` (tab bina asli drishya wale tukdon par studio chalega).
+Telegram ka `/veo off` lambi video ka cartoon bhi rokta hai. Turant ek
+banwani ho to `/lambi abhi`; chalti hui rokni ho to `/lambi radd`.
+
+**Koi naya Secret nahi chahiye.** Cartoon ke liye wahi `GCP_SA_JSON` jo
+Veo ke liye hai. X ke trend `trends24.in` ke sarvajanik safhe se aate hain -
+wo site badle ya ruke to bas X wala hissa chup-chaap chhoot jaata hai.
+Facebook ka koi sarvajanik trend data nahi hai, isliye wo shaamil nahi.
+
+**Samay:** workflow ka `timeout-minutes` 180 hai - lambi video ka render
+(aawaaz + 10 minute render + end-card + jhalak, ~20-30 minute) ek hi run
+mein hota hai. Kachcha saamaan (`work/lv_...`) render ke turant baad mit
+jaata hai; upload/reject ke baad final video bhi.
+
+---
+
 ## Dhyan dene layak
 
 - **Cache ki seema 10 GB hai, aur 7 din bina chhue cache mit jaata hai.**

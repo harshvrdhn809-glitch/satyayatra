@@ -223,8 +223,15 @@ def _why_empty(data):
     return "jawab ki shakl: " + blob[:400]
 
 
-def _clip(prompt, out_path, vertical=False, image_path=""):
-    """Ek clip banao. (True, '') ya (False, wajah). Kabhi throw nahi karta."""
+def _clip(prompt, out_path, vertical=False, image_path="",
+          people="dont_allow", negative="", secs=0):
+    """Ek clip banao. (True, '') ya (False, wajah). Kabhi throw nahi karta.
+
+    people/negative/secs SIRF lambi video (sy_long) ke prateekatmak cartoon
+    ke liye badalte hain - wahan cartoon kirdaar chal sakte hain (asli
+    vyakti ki shakl kabhi nahi, prompt aur negative dono mein). Chhoti
+    video ka har rasta (make()) inhe nahi chhoota, isliye wahan "AADMI
+    KABHI NAHI" waisa hi hai."""
     try:
         token, sa = _token()
     except Exception as e:
@@ -250,7 +257,7 @@ def _clip(prompt, out_path, vertical=False, image_path=""):
 
     params = {
         "sampleCount": 1,
-        "durationSeconds": seconds(),
+        "durationSeconds": secs or seconds(),
         "aspectRatio": "9:16" if vertical else "16:9",
         "resolution": resolution(),
         # Aawaaz hum khud banate hain - Veo ki aawaaz ka koi kaam nahi, aur
@@ -258,8 +265,8 @@ def _clip(prompt, out_path, vertical=False, image_path=""):
         "generateAudio": False,
         # AADMI KABHI NAHI. Upar wali tippani dekhiye - ye is file ki sabse
         # zaroori line hai.
-        "personGeneration": "dont_allow",
-        "negativePrompt": "text, watermark, logo, subtitles, distorted faces",
+        "personGeneration": people or "dont_allow",
+        "negativePrompt": negative or "text, watermark, logo, subtitles, distorted faces",
     }
     # "task" JAAN-BOOJHKAR NAHI BHEJA JAATA.
     #

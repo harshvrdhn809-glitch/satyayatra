@@ -196,6 +196,20 @@ def check_live_keys():
         line(WARN, "YouTube trending (Bharat)", str(e)[:60])
         warnings.append("YouTube trending nahi khula")
 
+    # Lambi video (sy_long) ka teesra signal - X ke trend, trends24.in ke
+    # sarvajanik safhe se. Na khule to sirf "dhyaan": baaki srot chalte hain.
+    try:
+        import sy_long
+        x = sy_long.x_trends(limit=5)
+        if x:
+            line(OK, "X trends (trends24.in)", "%d, jaise: %s" % (len(x), x[0][:32]))
+        else:
+            line(WARN, "X trends (trends24.in)", "kuch nahi aaya - lambi video bina X ke chunegi")
+            warnings.append("X trends khaali")
+    except Exception as e:
+        line(WARN, "X trends (trends24.in)", str(e)[:60])
+        warnings.append("X trends nahi khule")
+
     # LEKH KA SROT - YE JAANCH SABSE ZYADA KAAM KI HAI.
     #
     # Vishay mil jaana aadha kaam hai; uspar poora LEKH milna asli kaam
