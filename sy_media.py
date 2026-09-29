@@ -903,7 +903,20 @@ _GOV_SKIP = re.compile(r"logo|icon|emblem|banner|sprite|flag|social|share|arrow|
                        r"g20|azadi|digital|swachh|footer|header", re.I)
 
 
+# Ek run mein ek naam ki khoj ek hi baar - har khoj GDELT se do call hai
+# aur GDELT har call par 20-90 second rukwata hai. Lambi video (sy_long) mein
+# ek hi vyakti ke kai tukde hote hain; bina iske har tukda wahi minute khata.
+_GOV_CACHE = {}
+
+
 def gov_photo(name):
+    key = re.sub(r"\s+", " ", str(name or "")).strip().lower()
+    if key not in _GOV_CACHE:
+        _GOV_CACHE[key] = _gov_photo(name)
+    return _GOV_CACHE[key]
+
+
+def _gov_photo(name):
     """PIB / PM India ke kisi safhe se us vyakti ki tasveer. (url, credit)
 
     Safha dhoondhna: GDELT/Bing se "<naam> site:<domain>". Pehra: safhe ke
