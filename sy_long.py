@@ -487,6 +487,12 @@ def send_slate(slate, items):
     return int(res.get("message_id") or 0)
 
 
+def _progress(text):
+    """Beech ke kadmon ki chhoti khabar - warna script se jhalak tak ghanton
+    Telegram par kuch nahi aata aur pata nahi chalta kaam kahan hai."""
+    _say("<b>Lambi video:</b> " + text)
+
+
 def _say(text):
     try:
         _tg().send_message(text)
@@ -1477,6 +1483,12 @@ def _stage_research(job, deadline):
             if i != job.get("pick", 0):
                 _say("Chune hue mudde par kaafi srot nahi mile - agla mudda liya: <b>%s</b>"
                      % _tg()._esc(items[i]["mudda_hi"]))
+            row = st.get(sid) or {}
+            _progress("script taiyar - <b>%s</b>\n%s\nlagbhag %.0f minute. Ab drishya "
+                      "dhoondh rahe hain (1-2 run lagengi)."
+                      % (_tg()._esc(row.get("headline_hi") or ""),
+                         _tg()._esc(row.get("attribution_line") or "")[:300],
+                         len(row.get("script_hi") or "") / 13.0 / 60.0))
             return True
         log("mudda chhoda (%s): %s" % (items[i]["mudda_hi"], why))
         if time.time() > deadline:
@@ -1533,6 +1545,11 @@ def _stage_fetch(job, deadline):
         st.update(sid, shots=json.dumps(shots, ensure_ascii=False))
     real = sum(1 for s in shots if s.get("file"))
     log("asli drishya: %d/%d" % (real, len(shots)))
+    miss = len(shots) - real
+    _progress("asli drishya %d/%d tukdon par mile. %s" % (
+        real, len(shots),
+        ("Baaki %d par cartoon (Veo) ban raha hai." % miss) if miss and veo_on()
+        else "Ab aawaaz aur render."))
     job["stage"] = "veo"
     _save(job)
     return True
@@ -1573,6 +1590,8 @@ def _stage_veo(job, deadline):
             _save(job)
     elif missing:
         log("Veo band/SA nahi - %d tukde studio par" % len(missing))
+    _progress("%sab aawaaz aur render (20-30 minute). Uske baad jhalak aayegi."
+              % (("%d cartoon clip bani, " % job.get("veo_made", 0)) if job.get("veo_made") else ""))
     job["stage"] = "render"
     _save(job)
     return True
@@ -1760,6 +1779,14 @@ STAGE_HI = {"choose": "mudde ka chunav (aapke jawab ka intezaar)",
             "research": "srot aur script", "shots": "shot list",
             "fetch": "asli drishya dhoondhna", "veo": "cartoon chitran (Veo)",
             "render": "aawaaz aur render", "wait": "jhalak par aapka faisla"}
+
+
+def short_status():
+    """/haal ki ek line mein - "" jab kuch nahi ban raha."""
+    job = _job()
+    if not job:
+        return ""
+    return "lambi video: " + STAGE_HI.get(job.get("stage"), str(job.get("stage")))
 
 
 def status_text():

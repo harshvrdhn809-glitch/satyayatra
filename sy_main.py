@@ -1694,6 +1694,13 @@ def status_line():
         jagah_txt = "%d/%d" % (max(0, cap - (uploads_today() + in_flight_count())), cap)
     line = ("%s | agli khabar %dm, yojana %dm, video %dm | aaj ki jagah %s"
             % (counts or "queue khaali", khabar, yojana, video, jagah_txt))
+    try:
+        import sy_long
+        lv = sy_long.short_status()
+        if lv:
+            line += " | " + lv
+    except Exception:
+        pass
     # Internet na ho to ye sabse zaroori baat hai - warna dikhta hai ki
     # program chal raha hai par kuch ho nahi raha, aur wajah samajh nahi
     # aati.
