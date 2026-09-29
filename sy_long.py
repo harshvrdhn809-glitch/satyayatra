@@ -1229,6 +1229,7 @@ def render(story, workdir):
     sid = story["story_id"]
     sections = st.kv_get("lv_sections_" + sid) or []
     shots = json.loads(story.get("shots") or "[]")
+    cfg.ensure_dirs()
     cfg.put_ffmpeg_on_path()
     render_core.set_intro_mode(False)
     # Naap pehle hi 16:9 - pichhli Reel ka 9:16 sy_scenes mein na reh jaye.
