@@ -1947,9 +1947,24 @@ def _drop_files(story):
     shutil.rmtree(_workdir(story["story_id"]), ignore_errors=True)
 
 
+# Upload ki katar (sy_main.tick_upload -> st.by_status("approved")) score se
+# chalti hai. Lambi video ka score 0 tha, isliye har nayi approve hui chhoti
+# video uske aage nikal jaati thi aur wo upload hi nahi hoti thi (30 Sep 2026,
+# Tamil Nadu wali pehli lambi video). Approve hone ke baad ye sabse aage.
+UPLOAD_SCORE = 100
+
+
+def _upload_first():
+    st.conn().execute(
+        "UPDATE stories SET score = ? WHERE beat = ? AND status = 'approved'"
+        " AND COALESCE(score, 0) < ?", (UPLOAD_SCORE, BEAT, UPLOAD_SCORE))
+    st.conn().commit()
+
+
 def _sweep_done():
     """Nikal chuki lambi video ki file turant hatao - 180 MB ki file cache
     mein din bhar dhoti rehti."""
+    _upload_first()
     rows = st.conn().execute(
         "SELECT * FROM stories WHERE beat = ? AND status IN "
         "('published','rejected','expired',?)", (BEAT, FAIL)).fetchall()
@@ -1993,7 +2008,7 @@ def on_button(payload, verdict, cb_id, message):
         tg.acknowledge(cb_id, message, "Ispar faisla ho chuka hai")
         return
     if verdict == "la":
-        st.update(sid, status="approved")
+        st.update(sid, status="approved", score=UPLOAD_SCORE)
         tg.acknowledge(cb_id, message, "Theek hai - poori video upload ki baari par")
         log("approve:", sid)
     else:
