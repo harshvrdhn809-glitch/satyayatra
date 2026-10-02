@@ -130,9 +130,18 @@ wali run ka intezaar kar lijiye.
 
 ## Lambi video (8-10 minute) - `sy_long.py`
 
-Ek din chhod kar ek lambi video: us mudde ki A se Z jaankari jo us waqt
-Google Trends, YouTube, X (Twitter) aur akhbaaron mein - sab jagah - charcha
-mein ho. Settings `config.cloud.ini` ke `[long]` mein.
+Ek din chhod kar ek lambi video: kisi BADE, CHALTE MAAMLE ki poori kahani -
+maamla kya hai, kahan se shuru hua, vipaksh/aalochak kya keh rahe hain aur
+sarkar/sanstha ka jawab kya hai, ab tak ka taaza update, aage kya. Settings
+`config.cloud.ini` ke `[long]` mein.
+
+**Mudda kaise chuna jaata hai:** trending SHABD nahi (wo ek din ka uchhaal
+hota hai). Pichhle 3 din ke rashtriya akhbaaron ke shirshak padhe jaate hain,
+Claude unme se wo maamle chhaantta hai jo kai din se, kai akhbaaron mein
+chal rahe hain aur jinme vivad ya bada asar ho. Phir GDELT se pakka hota hai:
+kam se kam 4 akhbaar aur 2 din. Google/YouTube/X sirf halka ishaara hain.
+Sabse seedha: Telegram par **`/lambi <vishay>`** (jaise `/lambi chunav
+aayog par vivad`) - bina vikalp ke seedha usi par video.
 
 **Kaise chalti hai**
 

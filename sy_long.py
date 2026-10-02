@@ -414,8 +414,9 @@ def rank_topics(cands):
     return sorted(cands, key=lambda c: (-len(c.get("signals") or []), c.get("_i", 0)))
 
 
-def pick_topics(want=3):
-    """Telegram par bhejne layak 2-3 mudde. [] = aaj kuch nahi mila."""
+def pick_trend_topics(want=3):
+    """PURANA tareeka - sirf trending shabdon se. Ab sirf tab chalta hai jab
+    akhbaaron wala tareeka (pick_topics) kuch na de."""
     got, g_links = gather()
     if not any(got.values()):
         log("kisi srot se kuch nahi aaya")
@@ -453,12 +454,239 @@ def pick_topics(want=3):
     return rank_topics(fresh)[:want]
 
 
+# ------------------------------------------------- mudda: akhbaaron se
+#
+# TRENDING SHABD MUDDA NAHI HOTA (2 Oct 2026, Harshvardhan)
+#
+# Pehla tareeka Google/YouTube/X par upar chal rahe SHABD uthata tha. Shabd
+# ek din ka uchhaal hota hai - koi naam, koi match, koi viral post. Uspar
+# 8-10 minute ki video koi nahi dekhta (pehli lambi video par ek view).
+# Lambi video ka darshak wo hai jo ek BADE CHALTE MAAMLE ko samajhna chahta
+# hai: "Election Commission par itna hungama kyun hai, shuru kahan se hua,
+# vipaksh kya keh raha, ab tak kya hua". Aisa maamla kai din se har akhbaar
+# ke pehle panne par hota hai.
+#
+# Isliye ab chunav AKHBAARON ke shirshakon se: pichhle 3 din ki rashtriya
+# khabrein, Claude unme se wo bade maamle chhaantta hai jo kai din se, kai
+# akhbaaron mein chal rahe hain aur jinme vivad/do paksh/bada asar ho. Phir
+# GDELT se pakka kiya jaata hai ki maamla sach mein kai din aur kai akhbaar
+# mein hai. Trending shabd ab sirf halka ishaara hain.
+#
+# Aur sabse seedha rasta: aap khud likh dein - /lambi <vishay>.
+
+NATIONAL_FEEDS = [
+    ("The Hindu", "https://www.thehindu.com/news/national/feeder/default.rss"),
+    ("Hindustan Times", "https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml"),
+    ("Indian Express", "https://indianexpress.com/section/india/feed/"),
+    ("Times of India", "https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms"),
+    ("NDTV", "https://feeds.feedburner.com/ndtvnews-india-news"),
+    ("Aaj Tak", "https://www.aajtak.in/rssfeeds/?id=home"),
+    ("BBC Hindi", "https://feeds.bbci.co.uk/hindi/rss.xml"),
+    ("Amar Ujala", "https://www.amarujala.com/rss/india-news.xml"),
+]
+HEADLINE_MAX_AGE_H = 72
+
+
+def headlines():
+    """Pichhle 3 din ke rashtriya shirshak. [(akhbaar, shirshak)] - feed
+    na khule to bas wo akhbaar chhoot jaata hai."""
+    now = time.time()
+    out, seen = [], set()
+    for name, url in NATIONAL_FEEDS:
+        try:
+            items = sy_net.parse_rss(sy_net.get_text(url, timeout=30))
+        except Exception as e:
+            log("feed nahi khula (%s): %s" % (name, str(e)[:80]))
+            continue
+        n = 0
+        for it in items[:40]:
+            title = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", it.get("title") or "")).strip()
+            if len(title) < 20:
+                continue
+            ts = sy_net.parse_date(it.get("published"))
+            if ts and now - ts > HEADLINE_MAX_AGE_H * 3600:
+                continue
+            k = title.lower()[:80]
+            if k in seen:
+                continue
+            seen.add(k)
+            out.append((name, title))
+            n += 1
+        log("  %s: %d shirshak" % (name, n))
+    return out
+
+
+ISSUE_SYSTEM = "\n".join([
+    "Aap ek Hindi news channel ke sampadak hain. Channel ek din chhod kar "
+    "8-10 minute ki EXPLAINER video banata hai - kisi BADE, CHALTE MAAMLE "
+    "ki poori kahani: maamla kya hai, kahan se shuru hua, kaun kya keh raha "
+    "hai (sarkar/sanstha banaam vipaksh/aalochak), ab tak ka taaza update, "
+    "aur aage kya.",
+    "",
+    "Aapko pichhle 3 din ke Bharat ke akhbaaron ke shirshak diye jayenge "
+    "(aur saath mein Google/YouTube/X ke trending shabd - wo sirf halka "
+    "ishaara hain, chunav ka aadhaar NAHI).",
+    "",
+    "Unme se 5 tak MAAMLE chuniye, sabse achha pehle. Achha maamla wo hai:",
+    "- jo KAI akhbaaron mein aur KAI din se chal raha ho (ek din ki khabar nahi);",
+    "- jisme vivad, bahas ya do paksh hon - jaise kisi sanstha par sawaal, "
+    "sarkar aur vipaksh ki takkar, adalat ka bada maamla, koi neeti jis par "
+    "hungama ho - YA jiska asar crore logon par ho;",
+    "- jiski ek KAHANI ho jo shuru se samjhaayi ja sake.",
+    "Ye NAHI chahiye: ek match ka score, kisi celebrity ki niji baat, ek "
+    "viral post, ek akeli durghatna jiska aage koi maamla nahi, rashifal, "
+    "share bazaar ka din.",
+    "Ek maamle ke kai shirshak hon (jaise alag-alag din ki khabrein) to unhe "
+    "EK maamla maaniye - wahi uski taakat hai.",
+    "",
+    "Sirf ek JSON object:",
+    '{"mudde": [{"mudda_hi": "maamle ka chhota Hindi naam (Devanagari, 45 '
+    'akshar tak), jaise \\"चुनाव आयोग पर विवाद\\"", "sawaal_hi": "darshak '
+    'ka sawaal jiska jawab video degi, jaise \\"चुनाव आयोग पर इतना हंगामा '
+    'क्यों?\\"", "query_en": "angrezi news search query, 3-6 shabd", '
+    '"wiki_en": "prishthbhoomi ke liye English Wikipedia lekh ka naam ya '
+    'khaali", "shirshak_ginti": "is maamle ke kitne shirshak suchi mein '
+    'the (ank)", "kyun": "ek line - ye bada maamla kyun hai"}]}',
+])
+
+
+def _ai_issues(heads, got):
+    import sy_ai
+    parts = ["AKHBAARON KE SHIRSHAK (pichhle 3 din):"]
+    parts += ["- [%s] %s" % (n, t) for n, t in heads[:260]]
+    hints = []
+    for src in ("google", "youtube", "x"):
+        hints += (got.get(src) or [])[:12]
+    if hints:
+        parts += ["", "TRENDING SHABD (sirf ishaara):", ", ".join(hints)]
+    try:
+        j = sy_ai.ask_json(ISSUE_SYSTEM, "\n".join(parts), max_tokens=2000)
+    except Exception as e:
+        log("maamle ki parakh nahi hui:", e)
+        return []
+    out = []
+    for it in ((j or {}).get("mudde") or [])[:6]:
+        if not isinstance(it, dict):
+            continue
+        q = re.sub(r"\s+", " ", str(it.get("query_en") or "")).strip()[:80]
+        hi = re.sub(r"\s+", " ", str(it.get("mudda_hi") or "")).strip()[:60]
+        if len(q) < 4 or not hi:
+            continue
+        try:
+            heads_n = int(it.get("shirshak_ginti") or 0)
+        except Exception:
+            heads_n = 0
+        out.append({"mudda_hi": hi, "query_en": q,
+                    "sawaal_hi": str(it.get("sawaal_hi") or "").strip()[:90],
+                    "wiki_en": str(it.get("wiki_en") or "").strip()[:100],
+                    "heads": heads_n, "signals": [],
+                    "kyun": str(it.get("kyun") or "")[:140]})
+    return out
+
+
+def _gdelt_articles(query, timespan="7d", records=150):
+    """GDELT ke lekh - pata aur din ke saath. [(url, "YYYYMMDD")]
+
+    sy_trend._gdelt sirf pate lautata hai; yahan din bhi chahiye (maamla kai
+    din se chal raha hai ya nahi). Rok/faasla sy_trend wala hi."""
+    import sy_trend
+    wait = sy_trend.GDELT_GAP - (time.time() - sy_trend._gdelt_last)
+    if wait > 0:
+        time.sleep(wait)
+    url = (sy_trend.GDELT + "?query=" + sy_net.urllib.parse.quote(str(query)[:200])
+           + "&mode=artlist&maxrecords=%d&format=json&timespan=%s" % (records, timespan))
+    for pause in (0, 30):
+        if pause:
+            time.sleep(pause)
+        try:
+            raw = sy_net.get_text(url, timeout=45)
+        except Exception as e:
+            sy_trend._gdelt_last = time.time()
+            log("GDELT:", str(e)[:80])
+            continue
+        sy_trend._gdelt_last = time.time()
+        if raw.lstrip()[:1] not in ("{", "["):
+            continue
+        try:
+            arts = json.loads(raw).get("articles") or []
+        except Exception:
+            return []
+        return [(str(a.get("url") or ""), str(a.get("seendate") or "")[:8])
+                for a in arts if a.get("url")]
+    return []
+
+
+def news_depth(query):
+    """Pichhle 7 din: kitne ALAG akhbaar, kitne ALAG din. (akhbaar, din, pate)"""
+    arts = _gdelt_articles(query + " sourcecountry:india")
+    hosts, days, keep = set(), set(), []
+    for u, d in arts:
+        h = sy_net.host(u)
+        if not h:
+            continue
+        if d:
+            days.add(d)
+        if h not in hosts:
+            hosts.add(h)
+            keep.append(u)
+    return len(hosts), len(days), keep[:20]
+
+
+def issue_score(c):
+    """Bada aur chalta maamla upar. Claude ka kram bhi ginti mein."""
+    return (min(c.get("news", 0), 30) / 3.0      # kitne akhbaar
+            + min(c.get("days", 0), 7) * 1.5      # kitne din se
+            + min(c.get("heads", 0), 10) * 0.5    # aaj ki suchi mein kitne shirshak
+            + len(c.get("signals") or []) * 0.5   # trending - sirf thoda
+            - c.get("_i", 0) * 1.0)
+
+
+def pick_topics(want=3):
+    """Telegram par bhejne layak 2-3 BADE CHALTE MAAMLE. [] = kuch nahi mila."""
+    heads = headlines()
+    got, _links = gather()
+    cands = _ai_issues(heads, got) if len(heads) >= 20 else []
+    if not cands:
+        log("akhbaaron se maamle nahi mile - trending wala purana tareeka")
+        return pick_trend_topics(want)
+    trend_terms = {k: v for k, v in got.items()}
+    fresh = []
+    for i, c in enumerate(cands):
+        if float(st.kv_get("lv_topic_" + _topic_key(c["query_en"]), 0) or 0) > time.time() - 10 * 86400:
+            log("haal mein ban chuka - chhoda:", c["mudda_hi"])
+            continue
+        c["_i"] = i
+        tk = _tokens(c["query_en"])
+        for src, terms in trend_terms.items():
+            if any(len(tk & _tokens(t)) >= 1 and any(len(w) >= 5 for w in tk & _tokens(t))
+                   for t in terms):
+                c["signals"].append(src)
+        fresh.append(c)
+    fresh = fresh[:5]
+    for c in fresh:
+        c["news"], c["days"], c["links"] = news_depth(c["query_en"])
+        c["signals"] = sorted(set(c["signals"]))
+        log("  %s: %d akhbaar, %d din" % (c["mudda_hi"], c["news"], c["days"]))
+    # Ek-do akhbaar ya ek din ki baat lambi video layak maamla nahi.
+    solid = [c for c in fresh if c["news"] >= 4 and c["days"] >= 2]
+    if solid:
+        fresh = solid
+    fresh.sort(key=issue_score, reverse=True)
+    return fresh[:want]
+
+
 def _signal_text(c):
-    names = {"google": "Google", "youtube": "YouTube", "x": "X", "news": "akhbaar"}
-    s = " + ".join(names.get(x, x) for x in (c.get("signals") or []))
+    names = {"google": "Google", "youtube": "YouTube", "x": "X", "news": "akhbaar",
+             "aap": "aapka chuna"}
+    bits = []
     if c.get("news"):
-        s += " (%d akhbaar)" % c["news"]
-    return s or "?"
+        bits.append("%d akhbaar" % c["news"])
+    if c.get("days"):
+        bits.append("%d din se khabar mein" % c["days"])
+    sig = [names.get(x, x) for x in (c.get("signals") or []) if x != "news"]
+    if sig:
+        bits.append("trending: " + " + ".join(sig))
+    return " · ".join(bits) or "?"
 
 
 # -------------------------------------------------------------- Telegram
@@ -473,13 +701,17 @@ def send_slate(slate, items):
     lines = ["<b>LAMBI VIDEO (8-10 min) - kis mudde par?</b>", ""]
     rows = []
     for i, it in enumerate(items):
-        lines.append("<b>%d.</b> %s\n   <i>%s</i>%s" % (
-            i + 1, tg._esc(it["mudda_hi"]), tg._esc(_signal_text(it)),
+        lines.append("<b>%d.</b> %s%s\n   <i>%s</i>%s" % (
+            i + 1, tg._esc(it["mudda_hi"]),
+            ("\n   " + tg._esc(it["sawaal_hi"])) if it.get("sawaal_hi") else "",
+            tg._esc(_signal_text(it)),
             ("\n   " + tg._esc(it.get("kyun") or "")) if it.get("kyun") else ""))
         rows.append([{"text": "%d. %s" % (i + 1, it["mudda_hi"][:30]),
                       "callback_data": "lk:%s:%d" % (slate, i)}])
     lines += ["", "Jawab na aaye to %d minute baad pehla vishay khud chuna jayega."
-              % int(choice_wait_minutes())]
+              % int(choice_wait_minutes()),
+              "Inme se koi theek na lage to apna vishay likhiye: "
+              "<code>/lambi chunav aayog vivad</code>"]
     rows.append([{"text": "Aaj lambi video nahi", "callback_data": "lx:%s:0" % slate}])
     res = tg._post("sendMessage", {
         "chat_id": tg._chat(), "text": "\n".join(lines)[:4000], "parse_mode": "HTML",
@@ -621,14 +853,16 @@ LONG_SYSTEM = "\n".join([
     "  hook     - 20-30 second. Sabse chaunkane wali SACCHI baat ya sawaal, "
     "aur ek line mein \"is video mein jaanenge...\". Namaskar ya "
     "like/subscribe nahi (wo video ke ant mein alag se aata hai).",
-    "  kahani   - poori kahani saar mein: kya hua hai, abhi kya haal hai.",
-    "  shuruaat - shuruaat aur timeline: kab kya hua, tareekhon ke saath.",
+    "  kahani   - maamla kya hai, ek saans mein: kya hua, kyun bada hai, abhi kya haal hai.",
+    "  shuruaat - shuruaat kahan se hui aur timeline: kab kya hua, tareekhon ke saath.",
     "  kaun     - kaun-kaun shaamil hai - log, sansthayein, unki bhoomika.",
-    "  paksh    - dono (ya sabhi) paksh: kaun kya keh raha hai, naam ke "
-    "saath, santulit. Ek paksh ko zyada jagah nahi.",
+    "  paksh    - hungama kyun: vipaksh/aalochak kya aarop laga rahe hain, "
+    "aur sarkar/sanstha ka jawab kya hai - dono naam ke saath, santulit. "
+    "Ek paksh ko zyada jagah nahi.",
     "  aankde   - srot ke ank, samjha kar (\"yaani har das mein se teen\").",
     "  asar     - aam aadmi, rajya, desh par asar - jitna srot kehte hain.",
-    "  aage     - aage kya hoga (niyam 4), aur 2-3 line ka saaf saar.",
+    "  aage     - ab tak ka TAAZA update (sabse nayi tareekh ke saath), "
+    "aage kya hoga (niyam 4), aur 2-3 line ka saaf saar.",
     "Kisi hisse ka material srot mein na ho to use chhota rakhiye ya chhod "
     "dijiye - khaali jagah bharne ke liye kuch mat gadhiye.",
     "",
@@ -730,6 +964,8 @@ def write_script(topic, srcs, wiki_title, wiki):
     user = "\n".join([
         "MUDDA: " + topic["mudda_hi"],
         "Angrezi mein: " + topic["query_en"],
+        ("Video ka kendriya sawaal (hook isi se): " + topic["sawaal_hi"])
+        if topic.get("sawaal_hi") else "",
         "Ye mudda abhi Bharat mein charcha mein hai (%s)." % _signal_text(topic),
         "", block,
         "Upar ke %d srot aur prishthbhoomi se, niyamon ke hisaab se, lambi "
@@ -1711,9 +1947,24 @@ def _drop_files(story):
     shutil.rmtree(_workdir(story["story_id"]), ignore_errors=True)
 
 
+# Upload ki katar (sy_main.tick_upload -> st.by_status("approved")) score se
+# chalti hai. Lambi video ka score 0 tha, isliye har nayi approve hui chhoti
+# video uske aage nikal jaati thi aur wo upload hi nahi hoti thi (30 Sep 2026,
+# Tamil Nadu wali pehli lambi video). Approve hone ke baad ye sabse aage.
+UPLOAD_SCORE = 100
+
+
+def _upload_first():
+    st.conn().execute(
+        "UPDATE stories SET score = ? WHERE beat = ? AND status = 'approved'"
+        " AND COALESCE(score, 0) < ?", (UPLOAD_SCORE, BEAT, UPLOAD_SCORE))
+    st.conn().commit()
+
+
 def _sweep_done():
     """Nikal chuki lambi video ki file turant hatao - 180 MB ki file cache
     mein din bhar dhoti rehti."""
+    _upload_first()
     rows = st.conn().execute(
         "SELECT * FROM stories WHERE beat = ? AND status IN "
         "('published','rejected','expired',?)", (BEAT, FAIL)).fetchall()
@@ -1757,7 +2008,7 @@ def on_button(payload, verdict, cb_id, message):
         tg.acknowledge(cb_id, message, "Ispar faisla ho chuka hai")
         return
     if verdict == "la":
-        st.update(sid, status="approved")
+        st.update(sid, status="approved", score=UPLOAD_SCORE)
         tg.acknowledge(cb_id, message, "Theek hai - poori video upload ki baari par")
         log("approve:", sid)
     else:
@@ -1833,7 +2084,52 @@ def do_command(rest):
         st.kv_set(RETRY_KEY, 0)
         return
     elif want:
-        _say("<code>/lambi</code>, <code>/lambi abhi</code>, <code>/lambi on</code>, "
-             "<code>/lambi off</code>, <code>/lambi radd</code>")
+        start_custom(str(rest).strip())
         return
     _say(status_text())
+
+
+def start_custom(text):
+    """/lambi <vishay> - aapka chuna maamla, bina vikalp ke seedha kaam par.
+
+    Ek din chhod kar wali ghadi ise nahi rokti (aapne abhi maanga hai), par
+    din ki 4 wali ginti lagti hai - aur ek waqt mein ek hi lambi video."""
+    if len(text) < 4:
+        _say("Vishay bhi likhiye, jaise: <code>/lambi chunav aayog par vivad</code>")
+        return
+    if _job():
+        _say("Ek lambi video pehle se ban rahi hai. <code>/lambi radd</code> se "
+             "use rok kar phir bhejiye, ya <code>/lambi</code> se haal dekhiye.")
+        return
+    ok, why = room_today()
+    if not ok:
+        _say("Aaj ki jagah bhar chuki (%s) - kal subah phir bhejiye." % _tg()._esc(why))
+        return
+    query = text
+    if not re.fullmatch(r"[A-Za-z0-9 ,.'-]+", text) or len(text.split()) < 2:
+        try:
+            import sy_ai
+            q = sy_ai.ask(
+                "Aap ek news researcher hain. Diye gaye vishay (Hindi/Roman "
+                "Hindi) ke liye ek chhoti ANGREZI news search query likhiye - "
+                "3 se 6 shabd, sirf query, aur kuch nahi.", text,
+                max_tokens=60).strip().strip('"').strip()
+            if 3 <= len(q) <= 80:
+                query = q
+        except Exception as e:
+            log("angrezi query nahi bani:", e)
+    topic = {"mudda_hi": text[:60], "query_en": query, "wiki_en": "",
+             "sawaal_hi": "", "signals": ["aap"], "kyun": "aapne chuna"}
+    try:
+        topic["news"], topic["days"], topic["links"] = news_depth(query)
+    except Exception:
+        pass
+    job = {"stage": "research", "items": [topic], "pick": 0, "tried": [],
+           "at": time.time(), "prev_day": st.kv_get(LAST_DAY_KEY, ""),
+           "crashes": 0, "veo_made": 0, "custom": True}
+    st.kv_set(LAST_DAY_KEY, _today())
+    _save(job)
+    _say("Theek hai - lambi video is par banegi: <b>%s</b>\n(khoj: <code>%s</code>)\n"
+         "Srot ikattha karke script agli run mein. Har kadam ki khabar yahin aayegi."
+         % (_tg()._esc(text), _tg()._esc(query)))
+    log("aapka lambi video vishay:", text, "->", query)
