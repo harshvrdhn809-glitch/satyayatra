@@ -1545,6 +1545,7 @@ def tick_commands():
                 "/anchor on | off - bulletin ke intro/outro par AI anchor\n"
                 "/anchor test - anchor ki jhalak, bina bulletin banaye\n"
                 "/lambi - lambi video ka haal | /lambi abhi | on | off | radd\n"
+                "/lambi &lt;vishay&gt; - isi maamle par lambi video\n"
                 "/kyun &lt;baat&gt; - pichhle reject ki wajah likho\n"
                 "/haal - abhi kya chal raha hai\n"
                 "/naya - naya code uthao aur dobara chalu ho\n"
