@@ -1616,6 +1616,11 @@ def tick_upload():
     ready = st.by_status("approved", limit=1)
     if not ready:
         return
+    # Sign-in khatam ho to har 20 second par Google ko wahi bekaar sawal
+    # nahi - log bhar jaata tha (Oct 2026). 15 minute baad phir dekhenge;
+    # naya token Secret se aata hai to agli run mein waise bhi naya hisaab.
+    if time.time() < float(st.kv_get("signin_pause_until", 0) or 0):
+        return
     ok, why = upload_allowed()
     if not ok:
         return
@@ -1658,6 +1663,7 @@ def tick_upload():
         # jayegi. Roz mein ek hi baar batate hain, warna har 20 second
         # par wahi sandesh jayega.
         log("YouTube sign-in khatam ho gaya")
+        st.kv_set("signin_pause_until", time.time() + 15 * 60)
         if st.kv_get("signin_warned_day", "") != _today():
             st.kv_set("signin_warned_day", _today())
             _ask_signin()
