@@ -118,6 +118,14 @@ jobs:
           # warna run ke beech taaza hua token purane Secret se na mite.
           if [ -n "$YT_TOKEN_JSON" ]; then
             h="$(printf '%s' "$YT_TOKEN_JSON" | sha256sum | cut -c1-16)"
+            # Sirf chhap ka chhota hissa (hash) - token nahi. Isse dikhta hai
+            # ki Secret sach mein badla ya nahi.
+            echo "YouTube token Secret: chhap ${h:0:8}, pichhli lagi: $(cut -c1-8 youtube-token.seed 2>/dev/null || echo koi-nahi)"
+            if printf '%s' "$YT_TOKEN_JSON" | python3 -c "import sys,json; t=json.load(sys.stdin); sys.exit(0 if t.get('refresh_token') else 1)" 2>/dev/null; then
+              echo "Secret mein refresh_token hai"
+            else
+              echo "::warning::YOUTUBE_TOKEN_JSON sahi JSON nahi hai ya usme refresh_token nahi - youtube-token.json ka POORA text daaliye"
+            fi
             if [ ! -f youtube-token.json ] || [ "$(cat youtube-token.seed 2>/dev/null)" != "$h" ]; then
               printf '%s' "$YT_TOKEN_JSON" > youtube-token.json
               echo "$h" > youtube-token.seed
