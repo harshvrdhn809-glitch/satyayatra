@@ -199,6 +199,43 @@ def _esc(s):
             .replace("<", "&lt;").replace(">", "&gt;"))
 
 
+def _warn_once(key, text):
+    """Din mein ek hi baar - har 20 minute ki run par wahi sandesh nahi."""
+    day = time.strftime("%Y-%m-%d")
+    if st.kv_get(key) == day:
+        return
+    st.kv_set(key, day)
+    try:
+        send_message(text)
+    except Exception:
+        pass
+
+
+def _report_webhook():
+    """Koi aur is bot par webhook laga deta hai to button ka jawab USKE paas
+    jaata hai, hamare paas nahi - aur ye chup-chaap hota hai. Oct 2026:
+    "Telegram se approve button kaam nahi kar rahi". Isliye hatane se PEHLE
+    dekh lete hain ki kisi ne laga to nahi rakha tha, aur laga tha to batate
+    hain (sirf host, poora pata nahi - usme kisi aur ki chaabi ho sakti hai)."""
+    try:
+        raw = sy_net.fetch(_api("getWebhookInfo"), timeout=30, retries=1)
+        info = (json.loads(raw.decode("utf-8", "replace")).get("result") or {})
+    except Exception as e:
+        log("webhook ki jaankari nahi mili:", e)
+        return
+    url = str(info.get("url") or "")
+    log("bot ka haal: webhook=%s, bina padhe %s"
+        % (sy_net.host(url) or "koi nahi", info.get("pending_update_count")))
+    if url:
+        _warn_once("tg_webhook_warned",
+                   "<b>Dhyaan: is bot par kisi aur ka webhook laga tha</b> ("
+                   + _esc(sy_net.host(url)) + ")\n\n"
+                   "Uske rehte aapke button ka jawab wahan chala jaata hai, "
+                   "yahan nahi pahunchta. Maine hata diya hai, par wo program "
+                   "(jaise purana n8n) chalu raha to phir laga dega - use band "
+                   "kar dijiye.")
+
+
 def ensure_polling():
     """Bot par laga hua webhook hata do.
 
@@ -215,6 +252,7 @@ def ensure_polling():
     # ka approval bhi) yahin mit jaata tha. Jo padh liya gaya hai wo
     # database ke tg_offset se waise bhi dobara nahi aata.
     drop = "false" if cfg.CLOUD else "true"
+    _report_webhook()
     try:
         _post("deleteWebhook", {"drop_pending_updates": drop}, timeout=30)
         log("webhook hataya (purane update %s)"
@@ -341,8 +379,17 @@ def poll_decisions():
     except sy_net.HttpError as e:
         _clear()
         if e.status == 409:
-            # Koi aur is bot ko sun raha hai - lagbhag hamesha purana
-            # webhook. Ek baar hata kar agli baari par phir dekh lenge.
+            # Koi aur is bot ko sun raha hai - ya to webhook, ya koi DOOSRA
+            # program usi bot se getUpdates kar raha hai (laptop wala
+            # SatyaYatra). Doosre haal mein button usko milta hai, hume nahi.
+            body = str(e.body or "")
+            log("getUpdates 409:", body[:160])
+            if "other getUpdates" in body:
+                _warn_once("tg_conflict_warned",
+                           "<b>Dhyaan: koi aur program isi bot ko padh raha hai</b>"
+                           "\n\nAapke button usi ko mil rahe hain, cloud ko "
+                           "nahi. Laptop par SatyaYatra chal raha ho to band "
+                           "kar dijiye (window, Task Scheduler dono).")
             ensure_polling()
         else:
             log("getUpdates:", e)

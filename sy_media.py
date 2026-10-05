@@ -909,7 +909,19 @@ _GOV_SKIP = re.compile(r"logo|icon|emblem|banner|sprite|flag|social|share|arrow|
 _GOV_CACHE = {}
 
 
+_gov_cache = {}
+
+
 def gov_photo(name):
+    """Ek hi naam par ek run mein ek hi baar khoj (lambi video mein wahi
+    vyakti kai tukdon par aata hai)."""
+    key = str(name or "").strip().lower()
+    if key not in _gov_cache:
+        _gov_cache[key] = _gov_photo(name)
+    return _gov_cache[key]
+
+
+def _gov_photo(name):
     key = re.sub(r"\s+", " ", str(name or "")).strip().lower()
     if key not in _GOV_CACHE:
         _GOV_CACHE[key] = _gov_photo(name)
@@ -935,7 +947,8 @@ def _gov_photo(name):
     for domain, credit, marks in GOV_SITES:
         links = []
         try:
-            links = sy_trend._gdelt('"%s" domain:%s' % (name, domain), timespan="3m")
+            links = sy_trend._gdelt('"%s" domain:%s' % (name, domain),
+                                    timespan="3m", patient=False)
         except Exception as e:
             log("gov photo (gdelt):", e)
         if not links:

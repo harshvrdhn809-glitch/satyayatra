@@ -399,8 +399,12 @@ def _india_score(rows):
     return out
 
 
-def _gdelt(query, timespan="3d", records=20):
-    """GDELT se lekh ke pate. Nakaami par khaali suchi - kabhi girta nahi."""
+def _gdelt(query, timespan="3d", records=20, patient=True):
+    """GDELT se lekh ke pate. Nakaami par khaali suchi - kabhi girta nahi.
+
+    patient=False: rok mile to intezaar nahi, seedhe khaali. Tasveer ki
+    khoj jaise chhote kaam ke liye - wahan 30+60 second rukna poori run
+    kha jaata tha (Oct 2026, lambi video ki ek run 37 minute chali)."""
     global _gdelt_last
     wait = GDELT_GAP - (time.time() - _gdelt_last)
     if wait > 0:
@@ -412,7 +416,7 @@ def _gdelt(query, timespan="3d", records=20):
 
     # Teen koshish, har baar pehle se lambi saans. GDELT ki rok kuch minute
     # rehti hai, isliye turant dobara poochhna use lambi hi karta hai.
-    for pause in (0, 30, 60):
+    for pause in ((0, 30, 60) if patient else (0,)):
         if pause:
             log("GDELT saans le raha hai - %d second ruk kar dobara" % pause)
             time.sleep(pause)

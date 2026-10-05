@@ -1759,6 +1759,17 @@ def _stage_shots(job, deadline):
     return True
 
 
+def _poll_buttons():
+    """Lambi video ka kaam aadhe ghante tak chal sakta hai. Us beech aapke
+    Telegram button (chhoti video ka approve bhi) padhe hi nahi jaate the -
+    aur lagta tha button kaam nahi kar raha. Har hisse ke beech ek baar."""
+    try:
+        import sy_main
+        sy_main.tick_decisions()
+    except Exception as e:
+        log("beech mein button padhna:", e)
+
+
 def _stage_fetch(job, deadline):
     sid = job["sid"]
     story = st.get(sid)
@@ -1772,6 +1783,7 @@ def _stage_fetch(job, deadline):
             continue
         if time.time() > deadline:
             return False
+        _poll_buttons()
         log("drishya: hissa %d/%d (%d tukde)" % (k + 1, len(secs), len(part)))
         got = fetch_section(story, part, k, workdir)
         rest = [s for s in shots if int(s.get("sec", 0)) != k]
@@ -1809,6 +1821,7 @@ def _stage_veo(job, deadline):
             job["prompts"] = prompts
             _save(job)
         for i, sh in missing:
+            _poll_buttons()
             if time.time() > deadline:
                 return False
             if job.get("veo_made", 0) >= veo_max_per_video():
