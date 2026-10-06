@@ -104,6 +104,8 @@ Repo → Settings → Secrets and variables → Actions → New repository secre
 | `PIXABAY_API_KEY` | nahi | ek aur stock source |
 | `GCP_SA_JSON` | nahi | Veo/Vertex service account — poori JSON file ka text |
 | `FB_PAGE_ID`, `FB_TOKEN`, `IG_USER_ID`, `GCS_BUCKET` | nahi | Facebook/Instagram (SOCIAL.md) |
+| `HEYGEN_API_KEY` | nahi | HeyGen anchor - hont milte hue (neeche "HeyGen anchor") |
+| `HEYGEN_AVATAR_ID` | nahi | sirf agar dashboard mein photo avatar banaya ho |
 
 \* Sarvam ya ElevenLabs, dono mein se ek.
 
@@ -191,6 +193,73 @@ mein hota hai. Kachcha saamaan (`work/lv_...`) render ke turant baad mit
 jaata hai; upload/reject ke baad final video bhi.
 
 ---
+
+## HeyGen anchor - hont milte hue (lip-sync)
+
+Video mein channel ki wahi presenter (end-card wali) ab **khud bolti hui**
+dikh sakti hai - hont hamari hi Sarvam wali aawaaz se milte hain. Aawaaz
+nahi badalti; HeyGen sirf chehra/hont banata hai. Code: `sy_heygen.py`
+(HeyGen), `sy_edit.py` (edit decision), `render_core.py` (khidkiyan).
+
+**Kaun tay karta hai ki anchor kab dikhe:** har video ke liye, shot list
+aur drishya dhoondhne ke BAAD (taaki pata ho kahan asli footage mila) aur
+aawaaz banne ke baad (taaki har tukde ka asli samay pata ho). Har tukde par
+teen mein se ek:
+
+- **anchor** - anchor poori screen par (patti/ticker uske upar, jaise studio;
+  us dauran neeche ke bole-shabd nahi)
+- **pip** - footage poori screen, anchor daayein chhoti khidki mein
+- **footage** - sirf footage
+
+Claude newsroom editor ki tarah sujhaav deta hai, phir pakke niyam lagte
+hain (Claude kuch bhi kahe): shuruaat aur ant anchor par; asli
+footage/tasveer mili ho to footage; AI-chitran par PIP, studio/kuch nahi par
+anchor; aankde/naam/bayan wale tukde par anchor poori screen par nahi;
+anchor lagaataar 12 second se zyada poori screen par nahi; aur kul anchor
+`[heygen] max_seconds_short` (30s) aur video ka 45% - jo kam ho. Lambi
+video mein `max_seconds_long` (90s) aur 15%.
+
+**Chalu karna (ek baar):**
+
+1. app.heygen.com → Settings → API → naya key. Use Secret
+   `HEYGEN_API_KEY` mein daaliye. (API ke credit plan ke credit se alag
+   ho sakte hain - HeyGen ki billing dekhiye.)
+2. Telegram par `/heygen on`. Haal: `/heygen`. Band: `/heygen off`.
+3. Actions → Run workflow → `mode = check` - "HeyGen chaabi: chal rahi hai"
+   aana chahiye (ye jaanch muft hai, koi video nahi banti).
+
+**Chehra:** koi avatar banana zaroori nahi. Program end-card presenter
+(`assets/endcard_presenter.mp4`) ka ek saaf frame EK baar HeyGen par chadhata
+hai (asset id database mein yaad) aur har video mein wahi tasveer bolti hai
+(HeyGen ka "image" video) - tasveer wahi, to chehra wahi. HeyGen ka asli
+"photo avatar" API se ban to sakta hai, par HeyGen ke niyam ke mutaabik use
+video mein lagaane se pehle **consent** (browser mein, recording ke saath)
+chahiye - wo program khud nahi kar sakta. Agar aap chahein: HeyGen dashboard
+→ Avatars → Create → Photo avatar, wahi tasveer daaliye, consent poora
+kijiye, aur us avatar (look) ka id Secret `HEYGEN_AVATAR_ID` mein daaliye -
+tab wahi avatar chalega.
+
+**Kharch kaise ginein:** HeyGen minute ke hisaab se credit leta hai. Hum
+POORI aawaaz nahi bhejte - sirf un tukdon ki jahan anchor dikhegi, ek hi
+file mein jod kar (beech mein 0.4s chuppi). Isliye:
+
+- ek chhoti video: ~10-30 second anchor (log mein: "HeyGen ko 14.0s ki
+  aawaaz bheji")
+- din ki pakki seema `[heygen] max_minutes_per_day` (3 minute) - iske baad
+  us din anchor nahi, video purane raste se
+- andaaza: `credit = (aaj ke second / 60) × HeyGen ka prati-minute rate`.
+  Rate engine par nirbhar hai (default Avatar IV); HeyGen ke skill docs
+  Avatar V ke liye ~6 credit/minute batate hain - apne plan ka pakka rate
+  help.heygen.com ke "API pricing" par dekhiye. `/heygen` aaj ke second
+  dikhata hai.
+- Wahi aawaaz dobara bheji jaaye (run giri, video dobara bani) to naya
+  video nahi banta - pichhla id database se.
+
+**Kabhi nahi rukti:** switch band, chaabi nahi, seema poori, HeyGen fail ya
+`wait_minutes` (20) mein video taiyaar nahi - to video bina HeyGen ke,
+pehle jaisi (footage / studio, jaankari video mein Veo wala anchor). HeyGen
+ki clip render ke turant baad mita di jaati hai (media cache na badhe).
+Reel (9:16) par abhi nahi.
 
 ## Dhyan dene layak
 

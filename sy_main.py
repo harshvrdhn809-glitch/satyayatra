@@ -1159,6 +1159,29 @@ def do_veo(rest):
     sy_telegram.send_message("\n".join(msg))
 
 
+def do_heygen(rest):
+    """/heygen on | off | /heygen - HeyGen lip-sync anchor ka switch.
+
+    /veo jaisa: config se upar, kyunki HeyGen per-minute credit leta hai aur
+    rokne ka button phone par hona chahiye. Band ho / seema poori ho to
+    video purane raste se (footage / studio / Veo anchor) - kabhi nahi rukti.
+    """
+    import sy_heygen
+    want = str(rest or "").strip().lower()
+    if want in ("on", "chalu", "1", "haan"):
+        sy_heygen.set_enabled(True)
+        log("heygen chalu")
+    elif want in ("off", "band", "0", "nahi"):
+        sy_heygen.set_enabled(False)
+        log("heygen band")
+    elif want:
+        sy_telegram.send_message(
+            "Samajh nahi aaya. <code>/heygen on</code> ya <code>/heygen off</code> "
+            "likhiye, ya sirf <code>/heygen</code> haal dekhne ke liye.")
+        return
+    sy_telegram.send_message(sy_heygen.status_text())
+
+
 def do_anchor(rest):
     """/anchor on | off | test - AI anchor (bulletin intro/outro) ka switch.
 
@@ -1501,6 +1524,8 @@ def tick_commands():
             do_bulletin(rest)
         elif c in ("/anchor", "/enkar"):
             do_anchor(rest)
+        elif c in ("/heygen", "/hontmilaan"):
+            do_heygen(rest)
         elif c in ("/lambi", "/long"):
             import sy_long
             sy_long.do_command(rest)
@@ -1544,6 +1569,7 @@ def tick_commands():
                 "/bulletin mirzapur|prayagraj|up - abhi ek banao\n"
                 "/anchor on | off - bulletin ke intro/outro par AI anchor\n"
                 "/anchor test - anchor ki jhalak, bina bulletin banaye\n"
+                "/heygen on | off - HeyGen anchor (hont milte hue) chalu/band\n"
                 "/lambi - lambi video ka haal | /lambi abhi | on | off | radd\n"
                 "/lambi &lt;vishay&gt; - isi maamle par lambi video\n"
                 "/kyun &lt;baat&gt; - pichhle reject ki wajah likho\n"

@@ -150,6 +150,8 @@ jobs:
           SY__SOCIAL__FB_TOKEN: ${{ secrets.FB_TOKEN }}
           SY__SOCIAL__IG_USER_ID: ${{ secrets.IG_USER_ID }}
           SY__SOCIAL__GCS_BUCKET: ${{ secrets.GCS_BUCKET }}
+          SY__HEYGEN__API_KEY: ${{ secrets.HEYGEN_API_KEY }}
+          SY__HEYGEN__AVATAR_ID: ${{ secrets.HEYGEN_AVATAR_ID }}
         run: |
           if [ "${{ inputs.mode }}" = "check" ]; then
             python sy_check.py
