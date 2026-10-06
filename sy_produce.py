@@ -410,9 +410,25 @@ def produce(story):
         # Jaankari video mein jin tukdon ka asli drishya na mile, unmein se
         # kuch anchor khud bolegi (sy_explainer) - unpar AI chitran ka paisa
         # nahi lagta, sirf nishan lagta hai.
+        #
+        # HEYGEN (Oct 2026): lip-sync wali anchor chalu ho to wahi in tukdon
+        # ko bolti hai (sy_heygen/sy_edit) - Veo wala explainer anchor tab
+        # is video mein nahi lagta (ek video, ek chehra).
+        hg_ok = False
         try:
-            import sy_explainer
-            slots = sy_explainer.line_slots(story)
+            import sy_heygen
+            hg_ok, hg_why = sy_heygen.ready(
+                story, vertical=str(story.get("beat") or "") in REEL_BEATS)
+            if not hg_ok:
+                log("HeyGen anchor nahi:", hg_why)
+        except Exception as e:
+            log("HeyGen jaanch mein gadbad:", e)
+        try:
+            if hg_ok:
+                slots = sy_heygen.line_slots(story)
+            else:
+                import sy_explainer
+                slots = sy_explainer.line_slots(story)
         except Exception:
             slots = 0
         shots = sy_media.fetch_shots(story, workdir, anchor_slots=slots)
@@ -504,7 +520,8 @@ def produce(story):
         prep = None
         try:
             import sy_explainer
-            prep = sy_explainer.prepare(story, workdir)
+            if not hg_ok:
+                prep = sy_explainer.prepare(story, workdir)
         except Exception as e:
             log("explainer anchor mein gadbad (bina uske aage):", e)
         render_core.set_intro_mode(bool(prep))
@@ -515,6 +532,7 @@ def produce(story):
         # drishya kab tak chalega. Isi wajah se ye kadam aawaaz ke BAAD hai.
         total_len = render_core.LEAD + secs + render_core.END_SECONDS
         credits, cuts = [], []
+        hg_plan = None
         if shots:
             # LEAD se - kyunki drishya us baat par badalna chahiye jispar
             # AAWAAZ hai, aur aawaaz LEAD par shuru hoti hai. Pehle wale
@@ -522,6 +540,11 @@ def produce(story):
             # jod deta hai, isliye peechhe ki screen kabhi khaali nahi.
             sy_scenes.plan(shots, render_core.LEAD,
                            total_len - render_core.END_SECONDS, timing)
+            # EDIT DECISION + HeyGen ko aawaaz - samay ab pakka hai, aur
+            # drishya kahan mila ye bhi. HeyGen apna video build() ke dauran
+            # banata hai; render se theek pehle utha lete hain (finish).
+            if hg_ok:
+                hg_plan = sy_heygen.plan(story, shots, workdir, render_core.LEAD)
             cuts = sy_scenes.build(shots, total_len, workdir)
             if cuts:
                 credits = sy_scenes.credit_spans(shots)
@@ -542,11 +565,28 @@ def produce(story):
         # sy_endcard) - tab render ke apne end card par wahi line dobara
         # likhne ki zaroorat nahi, sirf channel ka naam.
         job["endcard"] = sy_endcard.enabled()
+        # HeyGen anchor ki khidkiyan (full/PIP). Taiyaar na ho / fail ho to
+        # [] - video bina anchor ke, pehle jaisi.
+        hg_overlays = sy_heygen.finish(hg_plan, workdir) if (hg_plan and cuts) else []
+        if hg_overlays:
+            job["anchorOverlays"] = hg_overlays
+            job["creditSpans"] = sy_heygen.adjust_credits(credits, hg_overlays)
+            # Jaankari video ki thumbnail par wahi anchor (explainer jaisa).
+            if str(story.get("beat") or "") in TEACHER_BEATS:
+                try:
+                    import sy_explainer
+                    hclip = hg_overlays[0]["file"]
+                    sy_explainer.thumb_still(
+                        hclip, sy_endcard._duration(hclip) / 2.0, workdir)
+                except Exception as e:
+                    log("thumbnail ke liye anchor ki tasveer nahi:", e)
         try:
             render_core.render(job, workdir, out)
         finally:
             # Agli khabar par title card phir se (set_intro_mode dekhiye).
             render_core.set_intro_mode(False)
+            if hg_plan:
+                sy_heygen.cleanup(workdir)
         if not os.path.exists(out) or os.path.getsize(out) < 100000:
             raise RuntimeError("video bani hi nahi")
 
@@ -554,7 +594,9 @@ def produce(story):
         # gadbad ho to bina anchor ke wahi purani video chali jaati hai.
         # sy_anchor.py poori tarah alag file hai; iske bina bhi ye poora
         # rasta waisa hi chalta hai jaisa pehle chalta tha.
-        if str(story.get("beat") or "") == "bulletin":
+        # HeyGen anchor lag chuki ho to ye alag (3D) anchor nahi - ek video,
+        # ek chehra.
+        if str(story.get("beat") or "") == "bulletin" and not hg_overlays:
             try:
                 import sy_anchor
                 out = sy_anchor.wrap(story, out, workdir)
@@ -577,9 +619,10 @@ def produce(story):
 
         out, presenter_used = sy_endcard.append(story, out, workdir,
                                                 presenter_override=anchor_outro)
-        if presenter_used or anchor_outro:
+        if presenter_used or anchor_outro or hg_overlays:
             desc = str(story.get("yt_description") or "").strip()
-            line = (sy_explainer_desc() if anchor_outro else sy_endcard.DESC_LINE)
+            line = (sy_heygen.desc_line() if hg_overlays else
+                    sy_explainer_desc() if anchor_outro else sy_endcard.DESC_LINE)
             if line not in desc:
                 desc = (desc + "\n\n" + line).strip()
                 story["yt_description"] = desc
@@ -603,7 +646,8 @@ def produce(story):
             art_is_ai=thumb_is_ai,
             # Jaankari video mein anchor laga ho to thumbnail par bhi wahi.
             anchor_path=(os.path.join(workdir, "anchor_thumb.jpg")
-                         if anchor_outro else ""),
+                         if (anchor_outro or hg_overlays) and os.path.exists(
+                             os.path.join(workdir, "anchor_thumb.jpg")) else ""),
             workdir=workdir,
             category=story.get("category") or "politics",
             backdrop_style=story.get("style") or "grid",

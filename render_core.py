@@ -320,6 +320,58 @@ HOOK_SECONDS = 2.0
 LEAD = TITLE_SECONDS + HOOK_SECONDS
 END_SECONDS = 3.0
 
+# HEYGEN ANCHOR KI KHIDKIYAN (Oct 2026, sy_heygen/sy_edit).
+#
+# job["anchorOverlays"] = [{"file", "off", "start", "end", "mode", "cx"}]
+#   mode "anchor" - anchor poori screen (patti, ticker, bug USKE UPAR - TV
+#                   studio jaisa); us dauran neeche ke bole-shabd nahi
+#                   (anchor khud bol rahi hai, hont dikh rahe hain)
+#   mode "pip"    - footage poori screen, anchor daayein khidki mein; bole-
+#                   shabd baayein khisak jaate hain taaki khidki na dhakein
+# Anchor parde (dim) ke BAAD lagti hai - uska chehra dhundhla nahi hota.
+# Aawaaz wahi mix.wav - HeyGen video ki aawaaz kabhi nahi li jaati.
+PIP_W, PIP_H = 416, 520         # 4:5 - kamar se upar
+PIP_MARGIN = 48                 # daayein kinaare se
+PIP_BORDER = 6
+
+
+def _anchor_cue(job, a, b):
+    """Bole-shabd ka ek tukda [a, b) anchor khidkiyon ke hisaab se.
+
+    (a, b, pip) lauta ta hai - full anchor wala hissa kaat kar (bacha hua
+    sabse lamba hissa), aur pip=True agar PIP khidki se zara bhi takraata
+    ho. Kuch na bache (ya CAP_MIN se chhota) to None."""
+    parts = [(float(a), float(b))]
+    pip = False
+    for o in job.get("anchorOverlays") or []:
+        s, e = float(o["start"]), float(o["end"])
+        if o.get("mode") == "pip":
+            if s < float(b) and e > float(a):
+                pip = True
+            continue
+        nxt = []
+        for x, y in parts:
+            if e <= x or s >= y:
+                nxt.append((x, y))
+                continue
+            if x < s:
+                nxt.append((x, s))
+            if e < y:
+                nxt.append((e, y))
+        parts = nxt
+    parts = [pt for pt in parts if pt[1] - pt[0] >= CAP_MIN]
+    if not parts:
+        return None
+    x, y = max(parts, key=lambda pt: pt[1] - pt[0])
+    return x, y, pip
+
+
+def _pip_box(job):
+    """(x, y) - PIP khidki (border samet) ka upar-baayan kona."""
+    sy = int(job.get("_strapY") or STRAP_Y)
+    return (W - PIP_W - 2 * PIP_BORDER - PIP_MARGIN,
+            max(110, sy - PIP_H - 2 * PIP_BORDER - 28))
+
 
 def set_intro_mode(anchor=False):
     """Anchor video ke aage judne wali ho to channel ka title card nahi.
@@ -1022,11 +1074,24 @@ def build_ass(job, dur, path):
 
     over = 0
     for t, end, p in _cues(job, body_start, body_end):
+        # Anchor poori screen par bol rahi hai - uske hont hi shabd hain,
+        # us hisse mein neeche shabd nahi.
+        cut = _anchor_cue(job, t, end)
+        if cut is None:
+            continue
+        t, end, in_pip = cut
+        # PIP khidki daayein hai - shabd baayein ki jagah mein.
+        avail = W - (240 if not VERTICAL else 110)
+        cx_cap = W // 2
+        if in_pip:
+            px, _py = _pip_box(job)
+            avail = px - 120
+            cx_cap = 60 + avail // 2
         # Do line, 42 akshar prati line - isse zyada ek nazar mein padha
         # nahi jaata. Font utna bada jitni jagah hai: 42 akshar 104 par
         # bhi poori chaudai mein sama jaate hain, isliye chhota rakhne ki
         # koi wajah nahi.
-        sz, lines = fit_lines(_esc(p), W - (240 if not VERTICAL else 110),
+        sz, lines = fit_lines(_esc(p), avail,
                               250 if not VERTICAL else 460,
                               max_size=CAP_MAX_SIZE, min_size=CAP_MIN_SIZE,
                               max_lines=CAP_LINES,
@@ -1038,7 +1103,7 @@ def build_ass(job, dur, path):
         # par beech mein kuch hilta nahi, kuch nikalta nahi.
         ev.append("Dialogue: 0,%s,%s,Spoken%d,,0,0,0,,{\\fad(160,160)"
                   "\\pos(%d,%d)}%s"
-                  % (_ts(t), _ts(end), sz, W // 2, int(H * CAP_Y), block))
+                  % (_ts(t), _ts(end), sz, cx_cap, int(H * CAP_Y), block))
         sizes_used.add(sz)
     if over:
         print("[render] %d tukde 22 akshar/second se tez hain - "
@@ -1077,6 +1142,14 @@ def build_ass(job, dur, path):
                 L("Credit", a, b, _esc(c), "{\\fad(300,250)}")
     elif credit:
         L("Credit", show_start, body_end, credit, "{\\fad(400,300)}")
+    # PIP khidki ke andar chhota "AI प्रस्तुतकर्ता" - credit wali jagah par
+    # footage ka apna credit chalta rehta hai.
+    for o in job.get("anchorOverlays") or []:
+        if o.get("mode") == "pip" and float(o["end"]) - float(o["start"]) > 0.8:
+            px, py = _pip_box(job)
+            L("Credit", float(o["start"]), float(o["end"]), "AI प्रस्तुतकर्ता",
+              "{\\an1\\pos(%d,%d)}" % (px + PIP_BORDER + 10,
+                                       py + PIP_H + PIP_BORDER - 8))
 
     # ---- Headline strap
     # Patti ke theek beech mein - AANKH ke hisaab se, box ke hisaab se nahi.
@@ -1266,6 +1339,8 @@ def build_filter(dur, job, bar_idx):
                  ":v='128+(val-128)*%.3f'[ph]" % (prev, k, k, k))
         prev = "[ph]"
 
+    prev = _anchor_filters(p, prev, job)
+
     body = "between(t,%.2f,%.2f)" % (body_start, body_end)
 
     # Lower third ki dono pattiyan - sirf body ke dauran.
@@ -1304,6 +1379,39 @@ def build_filter(dur, job, bar_idx):
              % (bar_idx, W, dur, H - 8))
     p.append("[p1]ass=overlay.ass[vout]")
     return ";".join(p)
+
+
+def _anchor_filters(p, prev, job):
+    """HeyGen anchor ki khidkiyan - har ek apne input se (render() ne
+    '-ss off -t len -i heygen.mp4' jode hain, idx o["_idx"] mein)."""
+    for k, o in enumerate(job.get("anchorOverlays") or []):
+        idx = o.get("_idx")
+        if idx is None:
+            continue
+        s, e = float(o["start"]), float(o["end"])
+        lab = "[an%d]" % k
+        head = "[%d:v]setpts=PTS-STARTPTS+%.3f/TB," % (idx, s)
+        if o.get("mode") == "pip":
+            # Kamar se upar ka hissa, jahan wo khadi hai (cx), 4:5 mein.
+            ch = 864
+            cw = int(ch * PIP_W / PIP_H)
+            x0 = int(max(0, min(1920 - cw, float(o.get("cx") or 0.6) * 1920 - cw / 2)))
+            p.append(head + "scale=1920:1080:force_original_aspect_ratio=increase,"
+                     "crop=1920:1080,crop=%d:%d:%d:0,scale=%d:%d,"
+                     "pad=%d:%d:%d:%d:color=white,format=yuv420p%s"
+                     % (cw, ch, x0, PIP_W, PIP_H,
+                        PIP_W + 2 * PIP_BORDER, PIP_H + 2 * PIP_BORDER,
+                        PIP_BORDER, PIP_BORDER, lab))
+            x, y = _pip_box(job)
+        else:
+            p.append(head + "scale=%d:%d:force_original_aspect_ratio=increase,"
+                     "crop=%d:%d,format=yuv420p%s" % (W, H, W, H, lab))
+            x, y = 0, 0
+        out = "[ao%d]" % k
+        p.append("%s%soverlay=%d:%d:enable='between(t,%.3f,%.3f)'"
+                 ":eof_action=pass%s" % (prev, lab, x, y, s, e, out))
+        prev = out
+    return prev
 
 
 def build_audio(audio, dur, workdir, track=""):
@@ -1487,6 +1595,18 @@ def render(job, workdir, out_path):
     cmd += ["-f", "lavfi", "-i",
             "color=c=0x%s:s=%dx8:r=%d:d=%.3f" % (acc, W, FPS, dur),
             "-i", mixed]
+    # HeyGen anchor - har khidki ke liye usi video ka sahi hissa. Aawaaz
+    # nahi (-an): hont hamari mix.wav se milte hain, uski apni aawaaz se nahi.
+    nxt = 4
+    for o in job.get("anchorOverlays") or []:
+        if VERTICAL or not os.path.exists(str(o.get("file") or "")):
+            o["_idx"] = None
+            continue
+        cmd += ["-an", "-ss", "%.3f" % float(o["off"]),
+                "-t", "%.3f" % (float(o["end"]) - float(o["start"]) + 0.2),
+                "-i", o["file"]]
+        o["_idx"] = nxt
+        nxt += 1
 
     vfilter = build_filter(dur, job, 2)
 

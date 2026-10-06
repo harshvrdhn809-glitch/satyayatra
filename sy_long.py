@@ -1485,8 +1485,18 @@ def render(story, workdir):
     log("aawaaz %.0f second (%.1f minute)" % (secs, secs / 60.0))
 
     credits, cuts = [], []
+    hg_plan = None
     if shots and any(s.get("file") for s in shots):
         sy_scenes.plan(shots, lead, total - end, timing)
+        # HeyGen anchor (lip-sync) - lambi video mein anchor ka hissa
+        # seemit ([heygen] max_seconds_long / max_share_long, kharch). Edit
+        # decision aur aawaaz yahin; video build() ke dauran banta hai.
+        try:
+            import sy_heygen
+            if sy_heygen.long_on():
+                hg_plan = sy_heygen.plan(story, shots, workdir, lead, long=True)
+        except Exception as e:
+            log("HeyGen anchor nahi (bina uske aage):", e)
         cuts = sy_scenes.build(shots, total, workdir)
         if cuts:
             credits = sy_scenes.credit_spans(shots)
@@ -1501,12 +1511,22 @@ def render(story, workdir):
     job = sy_produce.build_job(story, shots, credits, cuts, timing)
     job["studio_bg"] = sy_scenes.studio_path()
     job["endcard"] = sy_endcard.enabled()
+    hg_overlays = []
+    if hg_plan and cuts:
+        import sy_heygen
+        hg_overlays = sy_heygen.finish(hg_plan, workdir)
+        if hg_overlays:
+            job["anchorOverlays"] = hg_overlays
+            job["creditSpans"] = sy_heygen.adjust_credits(credits, hg_overlays)
     log("render (%.1f minute)..." % (total / 60.0))
     t0 = time.time()
     try:
         render_core.render(job, workdir, out)
     finally:
         render_core.set_intro_mode(False)
+        if hg_plan:
+            import sy_heygen
+            sy_heygen.cleanup(workdir)
     if not os.path.exists(out) or os.path.getsize(out) < 1000000:
         return False, "video bani hi nahi"
     log("render %.0f second mein" % (time.time() - t0))
@@ -1535,6 +1555,9 @@ def render(story, workdir):
     full = _probe_dur(out) or total
     ch = chapters(sections, timing, lead, lead + secs)
     desc = _description(story, sections, ch, ai > 0, presenter_used)
+    if hg_overlays:
+        import sy_heygen
+        desc = (desc.rstrip() + "\n\n" + sy_heygen.desc_line()).strip()
     st.update(sid, video_path=out, thumb_path=thumb_path, seconds=full,
               yt_description=desc, shots=json.dumps(shots, ensure_ascii=False))
     story.update(video_path=out, thumb_path=thumb_path, seconds=full, yt_description=desc)

@@ -406,6 +406,23 @@ def check_renderer():
             problems.append(mod + ".py nahi chala")
 
 
+def check_heygen():
+    """HeyGen anchor (vaikalpik). Chaabi ho to ek muft request (/v3/users/me)
+    se pakka - koi video nahi banti, koi credit nahi katta."""
+    import sy_heygen
+    if not sy_heygen.api_key():
+        line(WARN if sy_heygen.enabled() else OK, "HeyGen chaabi",
+             "nahi hai - anchor purane raste se (HEYGEN_API_KEY Secret)")
+        return
+    try:
+        sy_heygen._call("GET", "/v3/users/me", timeout=25)
+        line(OK, "HeyGen chaabi", "chal rahi hai (%s)" %
+             ("CHALU" if sy_heygen.enabled() else "band - /heygen on"))
+    except Exception as e:
+        line(WARN, "HeyGen chaabi", str(e)[:200])
+        warnings.append("HeyGen ki chaabi nahi chali - anchor purane raste se")
+
+
 def main():
     print("SatyaYatra - jaanch")
     print("folder:", cfg.HERE)
@@ -421,6 +438,7 @@ def main():
     check_youtube()
     print()
     check_live_keys()
+    check_heygen()
     print()
     check_store()
     check_renderer()
