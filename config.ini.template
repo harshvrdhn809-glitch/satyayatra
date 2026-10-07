@@ -325,6 +325,16 @@ ai_edit = 1
 anchor_slots = 3
 # Lambi video (sy_long) mein bhi anchor? 1 = haan.
 long = 1
+# FATAFAT REEL - anchor ka chehra khabar ke tone ke hisaab se. HeyGen
+# dashboard mein usi presenter ke teen "look" (gambhir - muskaan nahi /
+# neutral / halki muskaan) bana kar unke id Secrets HEYGEN_LOOK_SERIOUS,
+# HEYGEN_LOOK_NEUTRAL, HEYGEN_LOOK_POSITIVE mein daaliye (yahan kabhi nahi).
+# Khaali = wahi ek chehra, har tone ka sirf motion/expressiveness nirdesh.
+look_serious =
+look_neutral =
+look_positive =
+# Reel mein 16:9 anchor beech se kaat kar khada hota hai - 1080p saaf rehta hai.
+reel_resolution = 1080p
 
 [bulletin]
 # ROZ SHAAM KE BULLETIN - Mirzapur, Prayagraj, poora UP.
@@ -351,6 +361,32 @@ hour_up = 19
 # (upar [schedule] mein news_in_every) ko dheere-dheere badha ya 0 kar
 # sakte hain - lekin pehle kuch din bulletin ko akele chala kar dekh
 # lijiye. Dono ek saath bhi chal sakte hain, koi takraav nahi hai.
+
+[fatafat]
+# FATAFAT KHABAR - 9:16 REEL, 60 second se kam (sy_fatafat.py), Oct 2026.
+#
+# Din ki sabse badi/trending 3-5 khabrein, har ek ~10-12 second, shuru mein
+# chhota hook, ant mein subscribe. Anchor (HeyGen, end-card wali presenter)
+# hi mukhya - har khabar ALAG clip, khabar ke tone ke hisaab se chehra
+# (gambhir khabar par muskaan nahi). Footage upar chhoti khidki mein, bada
+# headline card, bade Devanagari captions. YouTube Shorts (#Shorts), phir
+# Facebook Page aur Instagram Reels ([social]).
+#
+# Din ki [limits] max_uploads_per_day (4) mein ye bhi ginti hai. Telegram:
+# /fatafat (haal), /fatafat on|off, /fatafat abhi. HeyGen band/fail ho to
+# Reel bina anchor ke banti hai - rukti nahi.
+enabled = 1
+# Kis-kis ghante (India ka samay) ke baad ek Reel - subah, dopahar, shaam
+# (7 Oct 2026: din mein 3 Reel).
+hours = 8, 13, 18
+min_items = 3
+max_items = 5
+# Poori Reel isse lambi nahi (Shorts 60 second).
+max_seconds = 58
+# 0 = HeyGen anchor nahi (sirf footage/studio + captions).
+heygen = 1
+# Telegram jhalak (MB) - isse badi ho to 540x960 ki chhoti.
+preview_mb = 45
 
 [long]
 # LAMBI VIDEO - 8-10 minute, ek mudde ki A se Z jaankari (sy_long.py).
@@ -455,7 +491,11 @@ offer_min_gap_minutes = 10
 #
 # Ye do section baaki video ke UPAR chalte hain. Do Reel prati din yaani
 # har 720 minute mein ek. 0 karne par Reel banna band ho jayega.
-reels_per_day = 2
+#
+# Oct 2026: inki jagah ab [fatafat] (Fatafat Khabar Reel, roz subah-shaam)
+# - isliye 0. Din ki 4 video ki seema mein dono ek saath nahi samaate. Wapas
+# chahiye to 2 kar dijiye (code waisa hi hai).
+reels_per_day = 0
 reel_minutes = 720
 # Ek waqt mein ek hi video approval par khadi rehti hai. Agar wo sandesh
 # aapne dekha hi nahi, to poora channel wahin ruk jaata hai - abhi.bat bhi

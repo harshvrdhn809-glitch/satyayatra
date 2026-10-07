@@ -352,6 +352,12 @@ def asked_by_you(story_id):
 
 def produce(story):
     """Ek khabar ko video bana kar Telegram par bhej do. True/False."""
+    # FATAFAT KHABAR REEL (Oct 2026) - apna alag rasta (sy_fatafat.py): har
+    # khabar ka alag tukda, alag anchor-chehra. Ye render pipeline chhedi
+    # nahi jaati.
+    if str(story.get("beat") or "") == "fatafat":
+        import sy_fatafat
+        return sy_fatafat.produce(story)
     sid = story["story_id"]
     cfg.ensure_dirs()
     cfg.put_ffmpeg_on_path()

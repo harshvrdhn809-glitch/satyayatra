@@ -319,7 +319,7 @@ def upload(story, video_path):
     # Shreni bhi badalti hai: bollywood Entertainment (24) mein jaati hai,
     # News & Politics (25) mein nahi - warna wo galat darshak ke saamne
     # jaati hai aur wahan chalti nahi.
-    if beat in ("bolly", "viral"):
+    if beat in ("bolly", "viral", "fatafat"):
         if "#Shorts" not in title:
             title = (title[:80].rstrip() + " #Shorts")
         desc = desc + "\n\n#Shorts"

@@ -10,6 +10,12 @@ BAAD ka kaam hai.
 
 ## Pehle ye do baatein
 
+**Fatafat Khabar Reel (Oct 2026)** bhi 9:16 hai - wo bhi Facebook aur
+Instagram dono par jaati hai (`sy_social.REEL_BEATS`). Kadam wahi neeche
+wale; GitHub Secrets: `FB_PAGE_ID`, `FB_TOKEN`, `IG_USER_ID`, `GCS_BUCKET`,
+aur Instagram ke GCS upload ke liye `GCP_SA_JSON` (Veo wala service
+account, bucket par likhne ka haq). Phir Telegram par `/social on`.
+
 **Instagram par sirf Reel jayegi — 16:9 wali khabar nahi.**
 Ye rok jaan-boojhkar hai. Aapki bolly/viral wali video 9:16 hain, wo
 Instagram par jaisi ki taisi baithti hain. 16:9 wali khabar wahan kat

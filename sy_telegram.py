@@ -134,12 +134,15 @@ def send_video_file(path, caption=""):
 
 def send_video_for_approval(story, video_path, thumb_path=""):
     """Video bheji jaati hai, uske neeche do button. message_id lauta ta hai."""
+    beat = str(story.get("beat") or "")
+    reel = beat in ("bolly", "viral", "fatafat")
     cap = "\n".join([
-        "<b>Bulletin taiyar hai</b>", "",
+        "<b>%s taiyar hai</b>" % ("Fatafat Reel" if beat == "fatafat" else "Bulletin"), "",
         "<b>" + _esc(story.get("headline_hi") or "") + "</b>", "",
         _esc(story.get("attribution_line") or ""),
         _esc(story.get("image_credit") or ""),
-        "%ds  |  1920x1080  |  aapke PC par bani" % int(story.get("seconds") or 0),
+        "%ds  |  %s  |  aapke PC par bani" % (int(story.get("seconds") or 0),
+                                              "1080x1920 (jhalak chhoti)" if reel else "1920x1080"),
         "", "YouTube title: " + _esc(story.get("yt_title") or ""),
     ])
     # Shot list bhi saath bhejte hain. Approve karne wale ko sirf ye nahi
