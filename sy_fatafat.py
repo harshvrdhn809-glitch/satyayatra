@@ -11,8 +11,8 @@ YouTube Shorts, Facebook aur Instagram Reels teeno par jaati hai.
 
 KRAM
 ====
-1. build() (din mein [fatafat] hours ke hisaab se, default subah 8 aur
-   shaam 6): pichhle ~18 ghante ke rashtriya akhbaaron ke shirshak
+1. build() (din mein [fatafat] hours ke hisaab se, default 8, 13 aur
+   18 baje): pichhle ~18 ghante ke rashtriya akhbaaron ke shirshak
    (sy_long.NATIONAL_FEEDS) + Google/YouTube/X ke trend (sy_long.gather) ->
    Claude 3-5 khabrein chunta hai -> har khabar ke lekh khol kar Claude
    chhote vaakyon mein script likhta hai (TATHYA SIRF SROT SE) -> alag call
@@ -78,8 +78,8 @@ def set_enabled(on):
 
 
 def hours():
-    """Din ke kis-kis ghante (India ka samay) ke baad ek Reel. "8, 18"."""
-    raw = cfg.get("fatafat", "hours") or "8, 18"
+    """Din ke kis-kis ghante (India ka samay) ke baad ek Reel. "8, 13, 18"."""
+    raw = cfg.get("fatafat", "hours") or "8, 13, 18"
     out = []
     for p in re.split(r"[,\s]+", raw):
         try:

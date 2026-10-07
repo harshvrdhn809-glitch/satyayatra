@@ -275,7 +275,8 @@ aur bade Devanagari captions (log bina aawaaz dekhte hain). Settings
 `config.cloud.ini` ke `[fatafat]` mein. Code: `sy_fatafat.py` (khabar,
 script, tone, kram), `sy_fatafat_render.py` (9:16 render).
 
-**Kab:** `[fatafat] hours = 8, 18` - subah 8 aur shaam 6 ke baad ek-ek.
+**Kab:** `[fatafat] hours = 8, 13, 18` - subah 8, dopahar 1 aur shaam 6
+ke baad ek-ek (din mein 3 Reel).
 Din ki `max_uploads_per_day` (4) mein ginti hai - jagah na ho to us baari
 ki Reel nahi banti. Telegram: `/fatafat` (haal), `/fatafat on|off`,
 `/fatafat abhi` (turant ek). Approval wahi ✅/❌ (Telegram par 540x960 ki
@@ -283,7 +284,8 @@ chhoti jhalak); ✅ ke baad YouTube Shorts (#Shorts), phir Facebook Page aur
 Instagram Reels (`/social on` + SOCIAL.md).
 
 **Purani bolly/viral Reel band** (`[schedule] reels_per_day = 0`) - din
-ki 4 mein dono nahi samaati. Wapas chahiye to 2 kar dijiye.
+ki 4 mein dono nahi samaati; "Reel jyada" ab Fatafat ki 3 baari se. Wapas
+chahiye to 3 kar dijiye (aur `[fatafat] hours` kam).
 
 **Khabrein kaise chuni jaati hain:** pichhle ~18 ghante ke rashtriya
 akhbaaron ke shirshak (wahi feeds jo lambi video ke mudde ke liye) +
@@ -329,8 +331,10 @@ card aur captions waise hi. Sirf anchor band karna ho (HeyGen chalu rakh
 kar): `[fatafat] heygen = 0`.
 
 **Kharch (andaaza):** ek Reel ~50-58 second ka anchor (5-7 chhote HeyGen
-video). Din mein 2 = ~2 minute - `[heygen] max_minutes_per_day` (3) mein
-baaki video ke liye ~1 minute bachta hai. Credit = minute × aapke plan ka
+video). Din mein 3 = ~2.5-3 minute - `[heygen] max_minutes_per_day` (3)
+lagbhag poora; baaki video mein anchor tab nahi lagega, aur pehle wali video
+ne kota kha liya to shaam ki Reel bina anchor bhi ban sakti hai. Teeno par
+pakka anchor chahiye to `max_minutes_per_day` 4-5 kijiye (kharch badhega). Credit = minute × aapke plan ka
 HeyGen rate (Avatar IV; pakka rate help.heygen.com "API pricing"). Iske
 alawa Claude (chunav + script + tone, ~3 call) aur Sarvam (~700 akshar)
 prati Reel. Veo ka koi kharch nahi.

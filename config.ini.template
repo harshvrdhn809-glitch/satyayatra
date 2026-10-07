@@ -376,8 +376,9 @@ hour_up = 19
 # /fatafat (haal), /fatafat on|off, /fatafat abhi. HeyGen band/fail ho to
 # Reel bina anchor ke banti hai - rukti nahi.
 enabled = 1
-# Kis-kis ghante (India ka samay) ke baad ek Reel - subah aur shaam.
-hours = 8, 18
+# Kis-kis ghante (India ka samay) ke baad ek Reel - subah, dopahar, shaam
+# (7 Oct 2026: din mein 3 Reel).
+hours = 8, 13, 18
 min_items = 3
 max_items = 5
 # Poori Reel isse lambi nahi (Shorts 60 second).
