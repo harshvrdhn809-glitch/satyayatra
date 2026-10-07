@@ -61,10 +61,17 @@ jobs:
             exit 1
           fi
 
+      # apt kabhi-kabhi mirror par atak jaata hai (7 Oct 2026: 1 ghante 45
+      # minute isi step par khadi rahi, aur concurrency ki wajah se us beech
+      # ki har run cancel hoti rahi - Telegram par kuch nahi aaya). Isliye
+      # step ki apni chhoti seema aur apt ke timeout/retry: atke to run 12
+      # minute mein fail hokar agli run ko jagah de deti hai.
       - name: ffmpeg aur Devanagari font
+        timeout-minutes: 12
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends ffmpeg fonts-noto-core fonts-noto-ui-core >/dev/null
+          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o DPkg::Lock::Timeout=60"
+          sudo apt-get $APT update -qq
+          sudo apt-get $APT install -y -qq --no-install-recommends ffmpeg fonts-noto-core fonts-noto-ui-core >/dev/null
           ffmpeg -hide_banner -buildconf | grep -q libass || { echo "::error::ffmpeg mein libass nahi"; exit 1; }
           fc-list | grep -qi devanagari || { echo "::error::Devanagari font nahi mila"; exit 1; }
 
