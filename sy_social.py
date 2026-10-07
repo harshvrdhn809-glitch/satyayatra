@@ -74,7 +74,8 @@ def bucket():
     return cfg.get("social", "gcs_bucket")
 
 
-REEL_BEATS = ("bolly", "viral")
+# fatafat = Fatafat Khabar Reel (sy_fatafat.py) - 9:16, Instagram par bhi.
+REEL_BEATS = ("bolly", "viral", "fatafat")
 
 
 # ----------------------------------------------------------- Facebook

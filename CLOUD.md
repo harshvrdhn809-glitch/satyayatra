@@ -106,6 +106,7 @@ Repo → Settings → Secrets and variables → Actions → New repository secre
 | `FB_PAGE_ID`, `FB_TOKEN`, `IG_USER_ID`, `GCS_BUCKET` | nahi | Facebook/Instagram (SOCIAL.md) |
 | `HEYGEN_API_KEY` | nahi | HeyGen anchor - hont milte hue (neeche "HeyGen anchor") |
 | `HEYGEN_AVATAR_ID` | nahi | sirf agar dashboard mein photo avatar banaya ho |
+| `HEYGEN_LOOK_SERIOUS`, `HEYGEN_LOOK_NEUTRAL`, `HEYGEN_LOOK_POSITIVE` | nahi | Fatafat Reel - presenter ke teen look (neeche "Fatafat Khabar") |
 
 \* Sarvam ya ElevenLabs, dono mein se ek.
 
@@ -259,7 +260,80 @@ file mein jod kar (beech mein 0.4s chuppi). Isliye:
 `wait_minutes` (20) mein video taiyaar nahi - to video bina HeyGen ke,
 pehle jaisi (footage / studio, jaankari video mein Veo wala anchor). HeyGen
 ki clip render ke turant baad mita di jaati hai (media cache na badhe).
-Reel (9:16) par abhi nahi.
+Purani bolly/viral Reel par nahi - Fatafat Reel (neeche) par haan.
+
+---
+
+## Fatafat Khabar - 1 minute ki Reel (`sy_fatafat.py`)
+
+Din ki sabse badi/trending **3-5 khabrein, 60 second se kam**, 9:16 mein.
+Shuru mein 2-3 second ka hook ("आज की चार बड़ी ख़बरें, फटाफट"), har khabar
+~10-12 second, ant mein subscribe. **Anchor hi mukhya hai** (HeyGen, wahi
+end-card wali presenter) - khabar ki tasveer/clip upar chhoti khidki mein,
+har khabar par bada headline card, "ख़बर 2/4" aur progress ki dhaariyaan,
+aur bade Devanagari captions (log bina aawaaz dekhte hain). Settings
+`config.cloud.ini` ke `[fatafat]` mein. Code: `sy_fatafat.py` (khabar,
+script, tone, kram), `sy_fatafat_render.py` (9:16 render).
+
+**Kab:** `[fatafat] hours = 8, 18` - subah 8 aur shaam 6 ke baad ek-ek.
+Din ki `max_uploads_per_day` (4) mein ginti hai - jagah na ho to us baari
+ki Reel nahi banti. Telegram: `/fatafat` (haal), `/fatafat on|off`,
+`/fatafat abhi` (turant ek). Approval wahi ✅/❌ (Telegram par 540x960 ki
+chhoti jhalak); ✅ ke baad YouTube Shorts (#Shorts), phir Facebook Page aur
+Instagram Reels (`/social on` + SOCIAL.md).
+
+**Purani bolly/viral Reel band** (`[schedule] reels_per_day = 0`) - din
+ki 4 mein dono nahi samaati. Wapas chahiye to 2 kar dijiye.
+
+**Khabrein kaise chuni jaati hain:** pichhle ~18 ghante ke rashtriya
+akhbaaron ke shirshak (wahi feeds jo lambi video ke mudde ke liye) +
+Google/YouTube/X trends -> Claude 3-5 alag, bade asar wali khabrein chunta
+hai (pichhli Reel wali dobara nahi) -> har khabar ke 1-2 lekh khol kar
+Claude chhote vaakyon mein likhta hai, **tathya sirf srot se**. Pakki
+jaanch: script ka koi bhi ank srot mein na mile to wo khabar chhod di
+jaati hai.
+
+**Anchor ka chehra khabar ke hisaab se.** Har khabar ka tone alag Claude
+call tay karti hai: `serious` (maut, haadsa, apraadh, aapda), `neutral`,
+`positive` (achhi khabar). Upar se pakka niyam: maut/haadsa/hatya/baadh
+jaise shabd hon to hamesha serious, Claude kuch bhi kahe. Har khabar
+HeyGen ka ALAG video hai, isliye har ek ka chehra alag ho sakta hai:
+
+1. **Looks (sabse bharosemand - aapko ek baar banana hai).** HeyGen
+   dashboard -> Avatars -> wahi presenter (photo avatar) -> naya look /
+   "Generate look". Teen look banaiye, prompt jaise:
+   - gambhir: *"same woman, serious and sombre expression, no smile, news studio"*
+   - neutral: *"same woman, calm neutral professional expression, news studio"*
+   - muskaan: *"same woman, slight warm smile, news studio"*
+   Har look ka id (look ke ⋯ menu / API `GET /v3/avatars/looks` mein `id`)
+   Secrets `HEYGEN_LOOK_SERIOUS`, `HEYGEN_LOOK_NEUTRAL`,
+   `HEYGEN_LOOK_POSITIVE` mein. Photo avatar par HeyGen ka consent pehle
+   poora hona chahiye (upar "Chehra").
+2. **Har tone ka motion nirdesh** (`motion_prompt` + `expressiveness`,
+   Avatar IV) - hamesha lagta hai. Look na hon to sirf yahi: wahi ek tasveer,
+   gambhir khabar par "serious, no smile" ka nirdesh. **Imaandari se:**
+   HeyGen ise mukhya roop se harkat (sir/haath) ke liye batata hai - chehre
+   ka bhaav tasveer se hi aata hai. Agar end-card wali tasveer mein
+   presenter muskura rahi hai to bina looks ke gambhir khabar par bhi
+   halki muskaan reh sakti hai. Isliye looks zaroor banaiye.
+3. **Aawaaz ka tone nahi badla** - Sarvam (bulbul) mein bhaav ka koi
+   switch nahi, aur pace badalne se aawaaz robotic hui thi (sy_tts.py).
+   Aawaaz har khabar par ek jaisi saaf news-aawaaz hai.
+
+`/fatafat` aur `/heygen` dikhate hain ki looks lage hain ya nahi.
+
+**Kabhi nahi rukti:** HeyGen band (`/heygen off`), chaabi nahi, aaj ka kota
+kam (poori Reel ka anchor ek saath - aadha nahi), ya koi tukda fail/der -
+to wo tukda bina anchor ke: khabar ki tasveer poori screen par, headline
+card aur captions waise hi. Sirf anchor band karna ho (HeyGen chalu rakh
+kar): `[fatafat] heygen = 0`.
+
+**Kharch (andaaza):** ek Reel ~50-58 second ka anchor (5-7 chhote HeyGen
+video). Din mein 2 = ~2 minute - `[heygen] max_minutes_per_day` (3) mein
+baaki video ke liye ~1 minute bachta hai. Credit = minute × aapke plan ka
+HeyGen rate (Avatar IV; pakka rate help.heygen.com "API pricing"). Iske
+alawa Claude (chunav + script + tone, ~3 call) aur Sarvam (~700 akshar)
+prati Reel. Veo ka koi kharch nahi.
 
 ## Dhyan dene layak
 

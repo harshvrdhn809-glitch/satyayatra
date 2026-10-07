@@ -184,7 +184,9 @@ def ready(story=None, vertical=False):
         if not api_key():
             return False, "HEYGEN_API_KEY Secret nahi hai"
         if vertical:
-            return False, "Reel (9:16) par abhi nahi"
+            # Purani bolly/viral Reel. Fatafat Reel apna rasta (sy_fatafat)
+            # leti hai aur vertical=False se poochhti hai.
+            return False, "bolly/viral Reel (9:16) par nahi - Fatafat Reel par haan"
         if room_seconds() < MIN_SECONDS:
             return False, "aaj ki seema (%.1f minute) poori" % max_minutes_per_day()
         return True, ""
@@ -265,11 +267,15 @@ def upload_asset(path, ctype):
     return aid
 
 
-def create_video(audio_asset, face, title=""):
-    """POST /v3/videos -> video_id. face = {"kind": "avatar"|"image", ...}."""
+def create_video(audio_asset, face, title="", res=None, motion_prompt="",
+                 expressiveness=None):
+    """POST /v3/videos -> video_id. face = {"kind": "avatar"|"image", ...}.
+
+    motion_prompt / expressiveness: Fatafat Reel har khabar ke tone ke hisaab
+    se deta hai (TONE_MOTION). Baaki video mein khaali - pehle jaisa."""
     body = {
         "aspect_ratio": "16:9",
-        "resolution": resolution(),
+        "resolution": res or resolution(),
         "audio_asset_id": audio_asset,
         "title": (title or "SatyaYatra anchor")[:90],
         # Background wahi jo tasveer mein hai (studio) - alag rang nahi.
@@ -284,9 +290,23 @@ def create_video(audio_asset, face, title=""):
     if eng:
         body["engine"] = {"type": eng}
     ex = (cfg.get("heygen", "expressiveness") or "").strip()
+    if expressiveness is not None:
+        ex = expressiveness
     if ex and eng != "avatar_v":
         body["expressiveness"] = ex
-    j = _call("POST", "/v3/videos", body=body)
+    if motion_prompt and eng != "avatar_v":
+        body["motion_prompt"] = motion_prompt[:400]
+    try:
+        j = _call("POST", "/v3/videos", body=body)
+    except HeyGenError as e:
+        # motion_prompt Avatar IV (photo/tasveer) par hi chalta hai. Kisi
+        # avatar/engine ne field na maani to bina uske ek baar - chehra phir
+        # bhi us tone wale look ka hi rehta hai.
+        if "motion_prompt" not in body or "motion" not in str(e).lower():
+            raise
+        log("motion_prompt nahi maana gaya - bina uske:", str(e)[:120])
+        body.pop("motion_prompt", None)
+        j = _call("POST", "/v3/videos", body=body)
     vid = str(((j or {}).get("data") or {}).get("video_id") or "")
     if not vid:
         raise HeyGenError("video_id nahi mila")
@@ -336,6 +356,108 @@ def face(workdir, fresh=False):
     asset = upload_asset(jpg, "image/jpeg")
     st.kv_set("heygen_image", {"id": asset, "sig": sig, "at": time.time()})
     return {"kind": "image", "id": asset}
+
+
+# ----------------------------------------------------------- tone (Fatafat Reel)
+#
+# ANCHOR KA CHEHRA KHABAR KE HISAAB SE (Oct 2026, Harshvardhan): maut/haadsa/
+# apraadh/aapda par gambhir chehra (muskaan bilkul nahi), achhi khabar par
+# halki muskaan, aam khabar par neutral.
+#
+# HeyGen mein do raste hain, dono lagaye gaye hain:
+#   1. LOOKS (sabse bharosemand) - ek hi presenter ke alag "look" (photo
+#      avatar ke look), har ek ka apna id. Dashboard mein usi presenter se
+#      teen look banaiye - gambhir, neutral, halki muskaan - aur unke id
+#      Secrets HEYGEN_LOOK_SERIOUS / _NEUTRAL / _POSITIVE mein. Tasveer mein
+#      jo chehra hai, video ka bhaav wahin se shuru hota hai.
+#   2. motion_prompt + expressiveness (Avatar IV, POST /v3/videos) - har tone
+#      ka apna nirdesh. HeyGen ke dastavez ise mukhya roop se HARKAT (sir,
+#      haath) ke liye batate hain - chehre ke bhaav ki guarantee nahi. Look
+#      na ho to sirf yahi lagta hai (ek hi tasveer, alag nirdesh).
+TONES = ("serious", "neutral", "positive")
+
+TONE_MOTION = {
+    "serious": ("Composed news anchor delivering grave news. Serious, sombre "
+                "face, absolutely no smile, lips relaxed, minimal head "
+                "movement, steady eye contact with the camera."),
+    "neutral": ("Calm professional news anchor. Neutral attentive expression, "
+                "no big smile, small natural head movement, eye contact."),
+    "positive": ("Warm news anchor sharing good news. A slight gentle smile, "
+                 "relaxed and friendly, small natural nods, eye contact."),
+}
+TONE_EXPRESS = {"serious": "low", "neutral": "low", "positive": "medium"}
+
+
+def look_for(tone):
+    """Is tone ka look id (Secret se), ya ""."""
+    tone = tone if tone in TONES else "neutral"
+    return (cfg.get("heygen", "look_" + tone) or "").strip()
+
+
+def looks_ready():
+    """Teeno look diye gaye hain?"""
+    return all(look_for(t) for t in TONES)
+
+
+def tone_face(workdir, tone):
+    """Tone wala look ho to wahi, warna wahi purana chehra (face())."""
+    lk = look_for(tone)
+    if lk:
+        return {"kind": "avatar", "id": lk, "tone": tone}
+    fc = dict(face(workdir))
+    fc["tone"] = tone
+    return fc
+
+
+def reel_resolution():
+    # Reel mein anchor ka 16:9 frame beech se kaat kar khada kiya jaata hai -
+    # 1080p par kati hui jagah bhi saaf rehti hai.
+    return cfg.get("heygen", "reel_resolution") or "1080p"
+
+
+def submit_clip(wav, workdir, tone, title=""):
+    """EK tukde (ek khabar) ki aawaaz par ek HeyGen video. video_id lauta ta
+    hai, ya HeyGenError. Wahi aawaaz + wahi chehra pehle bheja ho to wahi id
+    (dobara paisa nahi). Kota note_used() mein."""
+    secs = _wav_dur(wav)
+    mp3 = _to_mp3(wav, wav[:-4] + "_hg.mp3")
+    fc = tone_face(workdir, tone)
+    with open(mp3, "rb") as f:
+        key = hashlib.sha1(f.read() + json.dumps(fc, sort_keys=True).encode()
+                           ).hexdigest()[:16]
+    import sy_store as st
+    vid = (st.kv_get("heygen_job_" + key) or {}).get("id") or ""
+    if vid:
+        log("ye tukda pehle bhi bheja tha - wahi video:", vid)
+        return vid
+    audio = upload_asset(mp3, "audio/mpeg")
+    kw = {"res": reel_resolution(), "motion_prompt": TONE_MOTION.get(tone, ""),
+          "expressiveness": TONE_EXPRESS.get(tone, "low")}
+    try:
+        vid = create_video(audio, fc, title, **kw)
+    except HeyGenError as e:
+        if fc["kind"] != "image" or "asset" not in str(e).lower():
+            raise
+        fc = dict(face(workdir, fresh=True), tone=tone)
+        vid = create_video(audio, fc, title, **kw)
+    note_used(secs)
+    st.kv_set("heygen_job_" + key, {"id": vid, "at": time.time()})
+    log("HeyGen tukda (%s, %.1fs, %s) - video %s; aaj %.0f/%.0f sec"
+        % (tone, secs, "look" if fc.get("kind") == "avatar" and look_for(tone)
+           else fc["kind"], vid, used_seconds_today(), max_minutes_per_day() * 60))
+    return vid
+
+
+def fetch_clip(video_id, out_path, want_secs, minutes):
+    """Taiyaar hone tak ruko aur utaaro. (path, cx) ya ("", wajah)."""
+    url, dur = wait(video_id, minutes)
+    if not url:
+        return "", dur
+    sy_net.download(url, out_path, max_bytes=300 * 1024 * 1024, timeout=600)
+    got = _media_dur(out_path)
+    if got and abs(got - want_secs) > 1.5:
+        return "", "%.1fs ki aayi, %.1fs chahiye thi" % (got, want_secs)
+    return out_path, _person_x(out_path)
 
 
 # ----------------------------------------------------------- aawaaz ke tukde
@@ -601,6 +723,8 @@ def status_text():
     rows.append("Chaabi: %s" % ("hai" if api_key() else "NAHI (HEYGEN_API_KEY Secret)"))
     rows.append("Chehra: %s" % ("dashboard avatar (HEYGEN_AVATAR_ID)" if avatar_id()
                                 else "presenter ki tasveer (image)"))
+    rows.append("Fatafat Reel ke look (gambhir/neutral/muskaan): %s" % (
+        "teeno" if looks_ready() else ", ".join(t for t in TONES if look_for(t)) or "nahi"))
     rows.append("Aaj: %.0f / %.0f second"
                 % (used_seconds_today(), max_minutes_per_day() * 60))
     rows.append("Har video: chhoti %.0fs, lambi %.0fs tak"

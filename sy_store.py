@@ -498,7 +498,8 @@ if __name__ == "__main__":
 _ROTATION = {"gy": "gyan_last_", "tc": "tech_last_", "kb": "kaam_last_",
              "yj": "scheme_last_"}
 # Telegram ke switch - laptop par /veo on wagairah se lage the.
-_SWITCHES = ("veo_on", "social_on", "bulletin_on", "anchor_on", "heygen_on")
+_SWITCHES = ("veo_on", "social_on", "bulletin_on", "anchor_on", "heygen_on",
+             "fatafat_on")
 _DONE = ("published", "rejected", "expired", "no_visual", "low_reach")
 
 

@@ -164,6 +164,43 @@ def tick_bulletin():
         return
 
 
+def tick_fatafat():
+    """FATAFAT KHABAR REEL - din mein [fatafat] hours par (default 8 aur 18).
+
+    Script yahan banti hai (sy_fatafat.build), phir bulletin ki tarah
+    FORCE_KEY se katar mein sabse aage - tick_produce agli khaali baari mein
+    banata hai. Bulletin ke ULTE ye din ki 4 wali ginti (max_uploads_per_day)
+    mein ginti hai: jagah na ho to us baari ki Reel nahi banti (aur baaki din
+    ki video bhi isi jagah ke liye ladti hain - Reel pehle aati hai)."""
+    try:
+        import sy_fatafat
+    except Exception as e:
+        log("sy_fatafat load nahi hua:", e)
+        return
+    if not sy_fatafat.enabled():
+        return
+    slot = sy_fatafat.due_slot()
+    if slot is None:
+        return
+    # abhi.bat ka ek-baar wala nishan yahan NAHI khaate (wo agli aam video
+    # ke liye hai) - production_allowed() use mita deta.
+    ok, why = (True, "") if st.kv_get("produce_bypass_cap_once") else production_allowed()
+    if not ok:
+        log("Fatafat Reel (%d baje) nahi - %s" % (slot, why))
+        sy_fatafat.mark_slot(slot)
+        return
+    # Script ka kaam paisa leta hai - pehle nishan, taaki gadbad par har 20
+    # second dobara na chale.
+    sy_fatafat.mark_slot(slot)
+    try:
+        sid = sy_fatafat.build(slot)
+    except Exception as e:
+        log("Fatafat Reel ki script mein gadbad:", e)
+        return
+    if sid:
+        _force_add(sid)
+
+
 def tick_ingest():
     # Internet hi na ho to feeds tatolne ka koi matlab nahi - aur us khaali
     # koshish par ghadi chhap gayi to agli baari poore do ghante baad aati
@@ -1159,6 +1196,34 @@ def do_veo(rest):
     sy_telegram.send_message("\n".join(msg))
 
 
+def do_fatafat(rest):
+    """/fatafat on | off | abhi | (haal) - Fatafat Khabar Reel."""
+    import sy_fatafat
+    want = str(rest or "").strip().lower()
+    if want in ("on", "chalu", "1", "haan"):
+        sy_fatafat.set_enabled(True)
+    elif want in ("off", "band", "0", "nahi"):
+        sy_fatafat.set_enabled(False)
+    elif want in ("abhi", "now", "banao"):
+        sy_telegram.send_message("Theek hai - Fatafat Reel ki khabrein chun rahe hain...")
+        try:
+            sid = sy_fatafat.build("abhi")
+        except Exception as e:
+            sid = ""
+            log("fatafat abhi:", e)
+        if sid:
+            _force_add(sid)
+            sy_telegram.send_message("Script taiyar (%s) - agli baari mein video banegi."
+                                     % sy_telegram._esc(sid))
+        else:
+            sy_telegram.send_message("Abhi Reel ki khabrein nahi ban payin - log dekhiye.")
+        return
+    elif want:
+        sy_telegram.send_message("<code>/fatafat on|off|abhi</code> ya sirf <code>/fatafat</code>")
+        return
+    sy_telegram.send_message(sy_fatafat.status_text())
+
+
 def do_heygen(rest):
     """/heygen on | off | /heygen - HeyGen lip-sync anchor ka switch.
 
@@ -1526,6 +1591,8 @@ def tick_commands():
             do_anchor(rest)
         elif c in ("/heygen", "/hontmilaan"):
             do_heygen(rest)
+        elif c in ("/fatafat", "/reel"):
+            do_fatafat(rest)
         elif c in ("/lambi", "/long"):
             import sy_long
             sy_long.do_command(rest)
@@ -1570,6 +1637,7 @@ def tick_commands():
                 "/anchor on | off - bulletin ke intro/outro par AI anchor\n"
                 "/anchor test - anchor ki jhalak, bina bulletin banaye\n"
                 "/heygen on | off - HeyGen anchor (hont milte hue) chalu/band\n"
+                "/fatafat - Fatafat Khabar Reel ka haal | on | off | abhi\n"
                 "/lambi - lambi video ka haal | /lambi abhi | on | off | radd\n"
                 "/lambi &lt;vishay&gt; - isi maamle par lambi video\n"
                 "/kyun &lt;baat&gt; - pichhle reject ki wajah likho\n"
@@ -1796,7 +1864,7 @@ def one_round():
     # hai (wahan OFFER_KEY ki jaanch hai).
     # tick_long sabse aakhir mein: uska ek kadam 20-30 minute le sakta hai,
     # isliye pehle chhoti video ke jawab/upload nipat jaayein.
-    for step in (tick_decisions, tick_commands, tick_bulletin,
+    for step in (tick_decisions, tick_commands, tick_bulletin, tick_fatafat,
                  tick_ingest, tick_offer, tick_produce, tick_upload,
                  tick_long):
         try:
