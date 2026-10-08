@@ -182,6 +182,27 @@ def due_slot(now=None):
     return h
 
 
+def reels_left_today(now=None):
+    """Aaj ki kitni Reel abhi banni baaki hain - abhi wali baari (agar
+    bakaya) + aage ki baariyan. Band ho to 0.
+
+    sy_main.production_allowed() inke liye din ki jagah AARAKSHIT rakhta
+    hai: 8 Oct 2026 ko shaam 6 baje ki Reel isliye nahi bani kyunki din ki
+    4 jagah aam video pehle hi le chuke the ("aaj ki jagah bhar chuki")."""
+    if not enabled():
+        return 0
+    t = time.localtime(now) if now else time.localtime()
+    done = st.kv_get(SLOT_KEY) or {}
+    if done.get("day") != time.strftime("%Y-%m-%d", t):
+        done = {}
+    slots = set(done.get("slots") or [])
+    hs = hours()
+    passed = [h for h in hs if t.tm_hour >= h]
+    # Pehle ki chhooti baariyan ab nahi banengi (due_slot sirf aakhri leta hai).
+    start = passed[-1] if passed else -1
+    return len([h for h in hs if h >= start and h not in slots])
+
+
 def mark_slot(h):
     done = st.kv_get(SLOT_KEY) or {}
     if done.get("day") != _today():

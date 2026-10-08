@@ -67,11 +67,26 @@ jobs:
       # step ki apni chhoti seema aur apt ke timeout/retry: atke to run 12
       # minute mein fail hokar agli run ko jagah de deti hai.
       - name: ffmpeg aur Devanagari font
+        # 8 Oct 2026: 12 minute ki seema ke baad bhi lagbhag har 5vi run yahin
+        # atak kar fail ho rahi thi (apt ka mirror chup ho jaata hai, apne
+        # timeout ke bawajood). Ab har koshish ko `timeout` ~4 minute mein maar
+        # deta hai aur teen baar dobara - atki hui ek koshish poori run nahi
+        # khaati. ffmpeg (libass sahit) aur font pehle se hon to apt hi nahi.
         timeout-minutes: 12
         run: |
-          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o DPkg::Lock::Timeout=60"
-          sudo apt-get $APT update -qq
-          sudo apt-get $APT install -y -qq --no-install-recommends ffmpeg fonts-noto-core fonts-noto-ui-core >/dev/null
+          have() {
+            command -v ffmpeg >/dev/null && ffmpeg -hide_banner -buildconf 2>/dev/null | grep -q libass \
+              && fc-list | grep -qi devanagari
+          }
+          APT="-o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o DPkg::Lock::Timeout=60"
+          for n in 1 2 3; do
+            have && break
+            echo "apt koshish $n"
+            # Pichhli koshish beech mein maari gayi ho to dpkg ko poora karo.
+            [ "$n" = 1 ] || sudo timeout 60 dpkg --configure -a || true
+            sudo timeout 90 apt-get $APT update -qq || true
+            sudo timeout 120 apt-get $APT install -y -qq --no-install-recommends ffmpeg fonts-noto-core fonts-noto-ui-core >/dev/null || true
+          done
           ffmpeg -hide_banner -buildconf | grep -q libass || { echo "::error::ffmpeg mein libass nahi"; exit 1; }
           fc-list | grep -qi devanagari || { echo "::error::Devanagari font nahi mila"; exit 1; }
 

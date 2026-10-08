@@ -278,8 +278,10 @@ script, tone, kram), `sy_fatafat_render.py` (9:16 render).
 
 **Kab:** `[fatafat] hours = 8, 13, 18` - subah 8, dopahar 1 aur shaam 6
 ke baad ek-ek (din mein 3 Reel).
-Din ki `max_uploads_per_day` (4) mein ginti hai - jagah na ho to us baari
-ki Reel nahi banti. Telegram: `/fatafat` (haal), `/fatafat on|off`,
+Din ki `max_uploads_per_day` (4) mein ginti hai. Aaj ki jo Reel abhi
+banni baaki hain, **unki jagah aarakshit rehti hai** - aam khabar/jaankari
+video us jagah ko nahi le sakti (8 Oct 2026: shaam ki Reel isi wajah se
+chhooti thi). Isliye 3 Reel/din par aam video din mein lagbhag 1 hi. Telegram: `/fatafat` (haal), `/fatafat on|off`,
 `/fatafat abhi` (turant ek). Approval wahi ✅/❌ (Telegram par 540x960 ki
 chhoti jhalak); ✅ ke baad YouTube Shorts (#Shorts), phir Facebook Page aur
 Instagram Reels (`/social on` + SOCIAL.md).
