@@ -123,6 +123,13 @@ def set_anchor(eng):
     st.kv_set("fatafat_anchor", eng)
 
 
+def hook_on():
+    """Shuru ki "आज की चार बड़ी ख़बरें, फटाफट" wali line. 9 Oct 2026,
+    Harshvardhan: "pehli clip hata dijiye, seedhe news wala part aaye" -
+    isliye default BAND; Reel seedhe pehli khabar se shuru hoti hai."""
+    return cfg.num("fatafat", "hook", 0) == 1
+
+
 def use_heygen():
     return anchor_engine() == "heygen"
 
@@ -562,7 +569,8 @@ def build(slot=None):
         log("jaanch ke baad kaafi khabrein nahi bachin (%d)" % len(items))
         return ""
     hook = str((j or {}).get("hook_hi") or "").strip()
-    items = fit_items(items[:max_items()], hook or default_hook(len(items)))
+    items = fit_items(items[:max_items()],
+                      (hook or default_hook(len(items))) if hook_on() else "")
     if not hook or numbers_in(hook) - {str(len(items))} or len(hook) > 70:
         hook = default_hook(len(items))
     hook = re.sub(r"(चार|तीन|पाँच|पांच|दो|\d)\s+(बड़ी|बडी|अहम|ज़रूरी|जरूरी)",
@@ -591,7 +599,8 @@ def build(slot=None):
         "headline_hi": ("फटाफट: " + " | ".join(it["headline_hi"] for it in items))[:200],
         "headline_en": "Fatafat news reel",
         "lower_third_hi": items[0]["headline_hi"][:60],
-        "script_hi": " ".join([hook] + [it["line_hi"] for it in items] + [CTA_HI]),
+        "script_hi": " ".join(([hook] if hook_on() else [])
+                              + [it["line_hi"] for it in items] + [CTA_HI]),
         "yt_title": title[:85],
         "yt_description": "\n".join(desc),
         "tags": ", ".join(tags)[:480],
@@ -608,12 +617,16 @@ def build(slot=None):
 # ----------------------------------------------------------- video
 
 def segments(plan):
-    """Plan -> tukde: hook, har khabar, CTA."""
+    """Plan -> tukde: [hook,] har khabar, CTA. Hook sirf [fatafat] hook = 1
+    par - default Reel seedhe pehli khabar se (katar ki purani plan mein
+    hook likha ho tab bhi)."""
     items = plan.get("items") or []
     n = len(items)
-    segs = [{"tag": "hook", "kind": "hook", "index": -1, "count": n,
-             "text": plan.get("hook") or default_hook(n), "tone": HOOK_TONE,
-             "headline": "आज की %d बड़ी ख़बरें" % n, "kicker": ""}]
+    segs = []
+    if hook_on():
+        segs.append({"tag": "hook", "kind": "hook", "index": -1, "count": n,
+                     "text": plan.get("hook") or default_hook(n), "tone": HOOK_TONE,
+                     "headline": "आज की %d बड़ी ख़बरें" % n, "kicker": ""})
     for i, it in enumerate(items):
         segs.append({"tag": "k%d" % i, "kind": "item", "index": i, "count": n,
                      "text": it["line_hi"], "tone": it.get("tone") or "neutral",
@@ -827,7 +840,7 @@ def produce(story):
     try:
         plan = json.loads(story.get("shots") or "{}")
         segs = segments(plan)
-        if len(segs) < 2 + min_items():
+        if len([s for s in segs if s["kind"] == "item"]) < min_items():
             raise RuntimeError("plan mein kaafi khabrein nahi")
 
         for s in segs:
@@ -855,10 +868,12 @@ def produce(story):
         n0 = len(plan.get("items") or [])
         segs = drop_to_fit(segs, max_seconds())
         n = segs[0]["count"]
-        segs[0]["headline"] = "आज की %d बड़ी ख़बरें" % n
-        if n != n0:
+        hooks = [s for s in segs if s["kind"] == "hook"]
+        for h in hooks:
+            h["headline"] = "आज की %d बड़ी ख़बरें" % n
+        if hooks and n != n0:
             # Hook mein ginti badli - wahi ek line dobara (sasta).
-            h = segs[0]
+            h = hooks[0]
             h["text"] = default_hook(n)
             # Veo wala hook purani ginti bol chuka - ab Sarvam, bina anchor.
             h["anchor"] = h["veo"] = False
