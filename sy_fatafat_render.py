@@ -205,7 +205,7 @@ def build_ass(seg, path):
 # ------------------------------------------------------------ video
 
 def _is_video(path):
-    return str(path or "").lower().endswith((".mp4", ".mov", ".webm", ".mkv"))
+    return str(path or "").lower().endswith((".mp4", ".mov", ".webm", ".mkv", ".ogv"))
 
 
 def _bars(index, count):
@@ -271,8 +271,12 @@ def render_segment(seg, out, workdir):
         big_w, big_h = int(W * 1.10), int(box_h * 1.10)
         # Ken Burns: chhoti si chaal - tasveer zinda lage. Clip par bhi wahi
         # (bas sthir crop) - halka sa zoom.
-        move = ("x='(iw-%d)*t/%.3f':y='(ih-%d)/2'" % (W, max(dur, 0.1), box_h)
-                if not _is_video(src) else "x='(iw-%d)/2':y='(ih-%d)/2'" % (W, box_h))
+        # Vyakti ki tasveer (portrait) mein chehra upar ke hisse mein hota
+        # hai - beech se kaatne par sir kat jaata tha. Wahan upar se ~18%.
+        ypos = "(ih-%d)*0.18" % box_h if seg.get("media_kind") == "person" \
+            else "(ih-%d)/2" % box_h
+        move = ("x='(iw-%d)*t/%.3f':y='%s'" % (W, max(dur, 0.1), ypos)
+                if not _is_video(src) else "x='(iw-%d)/2':y='%s'" % (W, ypos))
         dim = "" if anchor else ",eq=brightness=-0.12:saturation=0.9"
         fc.append("[%d:v]trim=0:%.3f,setpts=PTS-STARTPTS,"
                   "scale=%d:%d:force_original_aspect_ratio=increase,"

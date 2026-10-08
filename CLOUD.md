@@ -295,6 +295,20 @@ Claude chhote vaakyon mein likhta hai, **tathya sirf srot se**. Pakki
 jaanch: script ka koi bhi ank srot mein na mile to wo khabar chhod di
 jaati hai.
 
+**Prasiddh vyakti ki khabar par unka hi drishya** (8 Oct 2026). Claude har
+khabar ke kendra ke jaane-maane vyakti ka naam (`people_en`, srot se mel
+khata hua) deta hai. Phir kram: Commons par us vyakti ki apni category ka
+**video** (chalti footage) -> Wikipedia lekh ki mukhya **tasveer** ->
+Commons category ki tasveer -> tab jaakar jagah/sanstha ki khoj. Sirf muft
+licence wale srot - news channel / YouTube ki footage nahi (copyright
+strike). Bahut se logon ka Commons par video hota hi nahi - tab unki asli
+tasveer (chehra upar rakh kar, halki chaal ke saath) aati hai.
+
+**Stock footage ke liye do muft chaabiyan zaroor daaliye:** `PEXELS_API_KEY`
+(pexels.com/api) aur `PIXABAY_API_KEY` (pixabay.com/api/docs). Ye khaali
+hon to jagah/cheez ki chalti footage ka bada srot band rehta hai aur zyada
+tukdon par Veo/studio aata hai.
+
 **Anchor ka chehra khabar ke hisaab se.** Har khabar ka tone alag Claude
 call tay karti hai: `serious` (maut, haadsa, apraadh, aapda), `neutral`,
 `positive` (achhi khabar). Upar se pakka niyam: maut/haadsa/hatya/baadh
@@ -323,6 +337,11 @@ HeyGen ka ALAG video hai, isliye har ek ka chehra alag ho sakta hai:
    Aawaaz har khabar par ek jaisi saaf news-aawaaz hai.
 
 `/fatafat` aur `/heygen` dikhate hain ki looks lage hain ya nahi.
+
+**HeyGen ka API credit khatam ho** (HTTP 402 / "insufficient credit"): 6
+ghante HeyGen ki koshish band, Telegram par din mein ek sandesh, `/heygen`
+mein "API credit KHATAM". app.heygen.com par **API credit** bhariye (plan ke
+credit se alag), phir `/heygen on` - rok turant hat-ti hai.
 
 **Kabhi nahi rukti:** HeyGen band (`/heygen off`), chaabi nahi, aaj ka kota
 kam (poori Reel ka anchor ek saath - aadha nahi), ya koi tukda fail/der -

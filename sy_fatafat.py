@@ -349,12 +349,10 @@ def collect(item, heads):
         texts.append("[%s] %s. %s" % (h["src"], h["title"], h["summary"]))
         if h["link"]:
             links.append(h["link"])
-    if item.get("query_en"):
-        try:
-            import sy_trend
-            links += sy_trend.search_links(item["query_en"], limit=4)
-        except Exception as e:
-            log("khoj:", str(e)[:80])
+    # GDELT (sy_trend.search_links) yahan JAAN-BOOJHKAR NAHI. 8 Oct 2026 ki
+    # subah wali Reel ki script mein 35 minute lage - har khabar par GDELT
+    # "saans le raha hai" (30/60 second) baar-baar. Shirshak ke apne lekh +
+    # summary kaafi hain; lekh na khule to summary hi srot hai.
     got = 0
     for url in links:
         if got >= 2:
@@ -393,13 +391,19 @@ WRITE_SYSTEM = "\n".join([
     "5. photo_queries: 2-3 ANGREZI khoj - us jagah/sanstha/cheez ki tasveer "
     "ke liye (jaise 'Election Commission of India building'). Kisi aam "
     "aadmi ka chehra nahi.",
+    "5b. people_en: agar khabar ke KENDRA mein koi jaana-maana vyakti hai "
+    "(abhineta, neta, khiladi, udyogpati - jinka Wikipedia lekh ho), unka "
+    "poora ANGREZI naam jaisa Wikipedia par likha hai (jaise 'Nana Patekar', "
+    "'Rahul Gandhi'), zyada se zyada 2. Aam log, peedit, aaropi, ya jinka "
+    "naam srot mein nahi - kabhi nahi. Na ho to [].",
     "6. hook_hi: shuru ki ek line, 6-10 shabd, khabron ki ginti ke saath, "
     "jaise 'आज की चार बड़ी ख़बरें, फटाफट।' - koi tathya nahi.",
     "7. Jis khabar ka srot adhoora ho use chhod dijiye (items mein mat "
     "daaliye).",
     "",
     'Sirf JSON: {"hook_hi": "", "items": [{"n": khabar ka number, '
-    '"headline_hi": "", "kicker_hi": "", "line_hi": "", "photo_queries": []}], '
+    '"headline_hi": "", "kicker_hi": "", "line_hi": "", "photo_queries": [], '
+    '"people_en": []}], '
     '"youtube_title_hi": "90 akshar tak", "tags": ["5-8 keyword"]}',
 ])
 
@@ -437,6 +441,27 @@ def default_hook(n):
     return "आज की %s बड़ी ख़बरें, फटाफट।" % NUM_HI.get(n, str(n))
 
 
+def people_in(names, source):
+    """Claude ke bataye naam - sirf wo jo srot se mel khaate hon.
+
+    Angrezi srot mein naam ka har hissa hona chahiye (koi aur vyakti na aa
+    jaye). Srot lagbhag poora Hindi ho (Devanagari mein naam) to Claude ka
+    angrezi roop maan lete hain - portrait() khud Wikipedia ke shirshak se
+    naam ka har hissa milata hai, galat lekh nahi uthata."""
+    src = str(source or "")
+    low = src.lower()
+    latin = len(re.findall(r"[A-Za-z]", src))
+    out = []
+    for nm in names or []:
+        nm = re.sub(r"\s+", " ", str(nm or "")).strip()[:60]
+        parts = [w for w in nm.lower().split() if len(w) > 2]
+        if len(parts) < 2 or nm in out:
+            continue
+        if all(w in low for w in parts) or latin < 200:
+            out.append(nm)
+    return out[:2]
+
+
 def make_items(j, picked, srcs):
     """Claude ka JSON -> jaanchi hui khabrein (tone ke bina)."""
     out = []
@@ -461,6 +486,7 @@ def make_items(j, picked, srcs):
         q = [str(x)[:80] for x in (it.get("photo_queries") or []) if str(x).strip()][:3]
         out.append({"headline_hi": head[:60], "kicker_hi": str(it.get("kicker_hi") or "")[:20],
                     "line_hi": line, "photo_queries": q or [picked[n]["query_en"]],
+                    "people_en": people_in(it.get("people_en"), text),
                     "hosts": hosts[:3], "link": (links or [""])[0]})
     return out
 
@@ -541,7 +567,8 @@ def segments(plan):
         segs.append({"tag": "k%d" % i, "kind": "item", "index": i, "count": n,
                      "text": it["line_hi"], "tone": it.get("tone") or "neutral",
                      "headline": it["headline_hi"], "kicker": it.get("kicker_hi") or "",
-                     "queries": it.get("photo_queries") or []})
+                     "queries": it.get("photo_queries") or [],
+                     "people": it.get("people_en") or []})
     segs.append({"tag": "cta", "kind": "cta", "index": n, "count": n,
                  "text": plan.get("cta") or CTA_HI, "tone": CTA_TONE,
                  "headline": "सब्सक्राइब करें", "kicker": "सत्ययात्रा न्यूज़"})
@@ -583,8 +610,76 @@ def drop_to_fit(segs, budget):
     return segs
 
 
+PERSON_CLIP_MAX_MB = 60
+
+
+def _ok_clip(path):
+    """Utri clip chalti hai? (kam se kam 2 second ki video)"""
+    try:
+        import subprocess
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", path],
+            capture_output=True, text=True, timeout=60)
+        return float((out.stdout or "0").strip() or 0) >= 2.0
+    except Exception:
+        return False
+
+
+def person_media(names, d):
+    """PRASIDDH VYAKTI KI KHABAR PAR UNKA HI DRISHYA (8 Oct 2026, Harshvardhan:
+    "famous hastiyon ki news par footage aani chahiye").
+
+    Kram: (1) Commons par us vyakti ki apni category ka VIDEO (chalti
+    footage, muft licence) -> (2) Wikipedia lekh ki mukhya tasveer
+    (portrait - naam ka har hissa shirshak mein, warna nahi) -> (3) Commons
+    category ki tasveer. Sirf wahi srot jinka licence saaf hai - news
+    channel/YouTube ki footage NAHI (copyright strike). (path, credit,
+    kind) - kind "clip" | "person"; kuch na mile to ("", "", "")."""
+    import sy_media
+    import sy_net
+    for name in (names or [])[:2]:
+        tries = (("clip", sy_media.commons_person_clip),
+                 ("person", sy_media.portrait),
+                 ("person", sy_media.commons_person_photo))
+        for kind, fn in tries:
+            try:
+                url, credit = fn(name)
+            except Exception as e:
+                log("  %s (%s): %s" % (name, fn.__name__, str(e)[:80]))
+                continue
+            if not url:
+                continue
+            path = os.path.join(d, "clip.mp4" if kind == "clip" else "photo.jpg")
+            try:
+                size = sy_net.download(url, path, max_bytes=PERSON_CLIP_MAX_MB * 1024 * 1024)
+            except Exception as e:
+                log("  %s utra nahi: %s" % (name, str(e)[:80]))
+                continue
+            good = (_ok_clip(path) if kind == "clip"
+                    else size > 2048 and sy_media.is_raster(path))
+            if not good:
+                try:
+                    os.remove(path)
+                except Exception:
+                    pass
+                continue
+            if kind == "clip":
+                # Thumbnail aur hook ke liye ek frame bhi.
+                sy_media._frame_from_clip(d)
+            log("  %s ka %s mila: %s" % (name, "footage" if kind == "clip" else "chitra", credit))
+            return path, credit, kind
+    return "", "", ""
+
+
 def _media_for(seg, d):
-    """Khabar ki tasveer/clip (vision jaanch sahit). (path, credit)."""
+    """Khabar ki tasveer/clip. Prasiddh vyakti ho to pehle UNKA (person_media),
+    warna jagah/sanstha ki (fetch_media, vision jaanch sahit). (path, credit)."""
+    if seg.get("people"):
+        path, credit, kind = person_media(seg["people"], d)
+        if path:
+            seg["media_kind"] = kind
+            return path, credit
     import sy_media
     mini = {"wants_photo": 1, "photo_queries": json.dumps(seg.get("queries") or []),
             "headline_hi": seg["headline"]}
@@ -618,6 +713,9 @@ def heygen_anchor(segs, workdir):
             return 0
         jobs = []
         for s in segs:
+            if sy_heygen.credit_blocked():
+                log("HeyGen credit khatam - baaki tukde bina anchor")
+                break
             try:
                 vid = sy_heygen.submit_clip(s["voice"], s["dir"], s["tone"],
                                             "SatyaYatra fatafat " + s["tag"])
@@ -688,15 +786,17 @@ def produce(story):
             h["speech"] = (LEAD_PAD, LEAD_PAD + secs)
 
         log("drishya...")
-        first = ""
+        first = {}
         for s in segs:
             if s["kind"] == "item":
                 s["media"], s["credit"] = _media_for(s, s["dir"])
-                first = first or s["media"]
+                if s["media"] and not first:
+                    first = s
         studio = sy_scenes.studio_path() or ""
         for s in segs:
             if s["kind"] == "hook":
-                s["media"] = first
+                s["media"] = first.get("media") or ""
+                s["media_kind"] = first.get("media_kind") or ""
             elif s["kind"] == "cta":
                 s["media"] = ""
             s["bg"] = studio
