@@ -52,8 +52,11 @@ TONE_HI = {"serious": "गंभीर", "neutral": "सामान्य", "po
 HOOK_TONE = "neutral"
 CTA_TONE = "neutral"
 CTA_HI = "ऐसी ही फटाफट ख़बरों के लिए सत्ययात्रा न्यूज़ को सब्सक्राइब कीजिए।"
-LEAD_PAD = 0.15        # har tukde ke aage chuppi (munh zara pehle khulta hai)
-TAIL_PAD = 0.30        # peeche - agle tukde se pehle saans
+LEAD_PAD = 0.12        # har tukde ke aage chuppi (munh zara pehle khulta hai)
+# Peeche - agle khabar se pehle ek chhoti saans. 0.30 se 0.18 (8 Oct 2026,
+# Harshvardhan: "bahut lamba pause video mein nahi hona chahiye") - har
+# khabar par 0.12 bachta hai, poori Reel mein lagbhag aadha second.
+TAIL_PAD = 0.18
 CPS = 13.0             # Sarvam ki raftaar (sy_tts.CPS) - andaaze ke liye
 SLOT_KEY = "fatafat_slots"
 USED_KEY = "fatafat_used"
@@ -623,14 +626,31 @@ def segments(plan):
     return segs
 
 
+def speech_only(src):
+    """Aawaaz ke aage-peeche ki chuppi ka naap - (shuru, ant) second mein.
+    Sarvam har tukde ke aage-peeche thodi chuppi chhod deta hai; teen-chaar
+    tukdon mein wo jud kar saaf sunai deti hai (8 Oct 2026)."""
+    try:
+        import sy_explainer
+        a, b = sy_explainer._speech_span(src)
+        return (a, b) if b - a > 0.4 else (0.0, 0.0)
+    except Exception as e:
+        log("chuppi ka naap nahi hua:", str(e)[:80])
+        return (0.0, 0.0)
+
+
 def pad_wav(src, out, lead=LEAD_PAD, tail=TAIL_PAD):
-    """Aage-peeche chuppi. Yahi file HeyGen ko bhi jaati hai aur render mein
-    bhi - dono ka samay ek."""
+    """Bolne wala hissa + aage-peeche utni hi chuppi jitni chahiye.
+
+    Yahi file HeyGen ko bhi jaati hai aur render mein bhi - dono ka samay ek."""
     with wave.open(src, "rb") as w:
         prm = w.getparams()
         frames = w.readframes(w.getnframes())
         rate = w.getframerate()
     step = prm.nchannels * prm.sampwidth
+    a, b = speech_only(src)
+    if b > a:
+        frames = frames[int(a * rate) * step:int(b * rate) * step]
     with wave.open(out, "wb") as d:
         d.setparams(prm)
         d.writeframes(b"\x00" * int(rate * lead) * step)
@@ -826,10 +846,12 @@ def produce(story):
             if s.get("voice"):
                 continue
             raw, _timing = sy_tts.speak(s["text"], s["dir"])
-            secs = sy_tts.duration(raw)
             s["voice"] = pad_wav(raw, os.path.join(s["dir"], "voice_pad.wav"))
-            s["dur"] = round(LEAD_PAD + secs + TAIL_PAD, 3)
-            s["speech"] = (LEAD_PAD, LEAD_PAD + secs)
+            # Lambai padi hui file se - pad_wav kinaare ki chuppi kaat deta
+            # hai, isliye wo aawaaz se chhoti ho sakti hai.
+            total = sy_tts.duration(s["voice"])
+            s["dur"] = round(total, 3)
+            s["speech"] = (LEAD_PAD, round(max(LEAD_PAD + 0.3, total - TAIL_PAD), 3))
         n0 = len(plan.get("items") or [])
         segs = drop_to_fit(segs, max_seconds())
         n = segs[0]["count"]
@@ -841,10 +863,10 @@ def produce(story):
             # Veo wala hook purani ginti bol chuka - ab Sarvam, bina anchor.
             h["anchor"] = h["veo"] = False
             raw, _t = sy_tts.speak(h["text"], h["dir"])
-            secs = sy_tts.duration(raw)
             h["voice"] = pad_wav(raw, os.path.join(h["dir"], "voice_pad.wav"))
-            h["dur"] = round(LEAD_PAD + secs + TAIL_PAD, 3)
-            h["speech"] = (LEAD_PAD, LEAD_PAD + secs)
+            total = sy_tts.duration(h["voice"])
+            h["dur"] = round(total, 3)
+            h["speech"] = (LEAD_PAD, round(max(LEAD_PAD + 0.3, total - TAIL_PAD), 3))
 
         log("drishya...")
         first = {}

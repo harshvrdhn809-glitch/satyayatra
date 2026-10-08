@@ -330,6 +330,20 @@ tukda Sarvam aawaaz mein bina anchor.
   bill alag hota hai, aur app ko robot se chalana Google ke niyamon ke
   khilaaf). Haath se banaye clip chahein to `assets/` mein daal sakte hain,
   par roz ki Reel apne aap Vertex AI se hi banegi.
+- **Chuppi nahi rehti (8 Oct 2026):** Veo clip ko poore 8 second tak
+  kheenchta hai, isliye bolne se pehle, beech mein aur ant mein chuppi reh
+  jaati thi. Ab do pehre hain: prompt mein saaf mana ("pehle frame se bolo,
+  beech mein mat ruko, apni taraf se kuch mat kaho"), aur uske BAAD naap kar
+  kaat-chhant - aage-peeche ki poori chuppi, aur beech ki har wo chuppi jo
+  0.34 second se lambi ho (uski jagah 0.16 second ki saans bachti hai).
+  Video aur aawaaz dono ek saath kat-te hain, isliye hont milte rehte hain.
+  Sarvam wali aawaaz (jahan Veo na lage) ke kinaare ki chuppi bhi kat-ti
+  hai, aur do khabron ke beech ka gap 0.30 se 0.18 second.
+- **Naya chehra har Reel par** (`[fatafat] veo_faces = rotate`, default):
+  paanch kalpanik presenter (`sy_fatafat_veo.FACES` - stree aur purush
+  dono) baari-baari, pichhli Reel wala chehra dobara nahi. **Ek Reel mein
+  ek hi chehra** rehta hai (purana usool). Hamesha wahi end-card wali
+  presenter chahiye to `veo_faces = fixed`.
 - **Dhyan:** Veo kabhi-kabhi line ka koi shabd badal/chhod sakta hai -
   captions hamari likhi line ke hain. Telegram jhalak mein ank aur naam
   sunkar hi ✅ dabaiye.
