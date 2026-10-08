@@ -383,7 +383,20 @@ min_items = 3
 max_items = 5
 # Poori Reel isse lambi nahi (Shorts 60 second).
 max_seconds = 58
-# 0 = HeyGen anchor nahi (sirf footage/studio + captions).
+# ANCHOR KAUN BANAYE (Oct 2026): veo = Google Veo (Vertex AI, GCP_SA_JSON;
+# kharch Google Cloud credit se) - presenter har tukde ki line KHUD Hindi
+# mein bolti hai (aawaaz Veo ki, 8 second tak ek clip). heygen = HeyGen
+# lip-sync (Sarvam aawaaz, HeyGen API credit). none = bina anchor.
+# Telegram: /fatafat anchor veo|heygen|none (config se upar).
+anchor = veo
+# Veo anchor: din mein zyada se zyada itne clip (ek Reel ~5-7). Har clip 8
+# second ka paisa (sy_fatafat_veo.py / CLOUD.md mein andaaza).
+veo_max_clips_per_day = 21
+# 720p sasta; 1080p par khada kaata hua anchor saaf rehta hai.
+veo_resolution = 1080p
+# Ek saath kitne clip Veo par (samay bachta hai).
+veo_parallel = 3
+# Purana: anchor = heygen ho tab bhi 0 = HeyGen nahi.
 heygen = 1
 # Telegram jhalak (MB) - isse badi ho to 540x960 ki chhoti.
 preview_mb = 45

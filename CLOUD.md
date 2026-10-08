@@ -309,7 +309,40 @@ tasveer (chehra upar rakh kar, halki chaal ke saath) aati hai.
 hon to jagah/cheez ki chalti footage ka bada srot band rehta hai aur zyada
 tukdon par Veo/studio aata hai.
 
-**Anchor ka chehra khabar ke hisaab se.** Har khabar ka tone alag Claude
+**Anchor ab Google Veo se (Oct 2026, default) - `[fatafat] anchor = veo`.**
+HeyGen ka API mehenga laga, isliye Reel ka anchor ab Google ke Veo (wahi
+model jo Gemini app mein video banata hai) se banta hai - Vertex AI ke
+raaste, wahi `GCP_SA_JSON` jo Veo drishya ke liye hai. Har tukda (hook, har
+khabar, CTA) Veo ka ek 8 second ka clip hai jismein presenter us line ko
+**khud Hindi mein bolti hai** - aawaaz Veo ki (Sarvam ki nahi), hont apne aap
+milte hain. Isliye Veo wali Reel mein har khabar ki line chhoti (~100
+akshar, 10-15 shabd) - Claude ko yahi niyam jaata hai. Lambi line wala
+tukda Sarvam aawaaz mein bina anchor.
+
+- **Ek Reel, ek chehra:** pehla clip end-card presenter ki tasveer se; Veo
+  wo tasveer roke to pehla clip sirf prompt se, aur baaki sab usi pehle
+  clip ke frame se. Wo bhi ruke to baaki tukde bina anchor - doosra chehra
+  kabhi nahi.
+- **Tone:** gambhir khabar par "serious, no smile", achhi par "slight
+  smile", baaki neutral - har clip ke prompt mein.
+- **Gemini app ka Pro subscription kyun nahi:** wo sirf app/website mein
+  haath se chalta hai - program use nahi chala sakta (koi API nahi; API ka
+  bill alag hota hai, aur app ko robot se chalana Google ke niyamon ke
+  khilaaf). Haath se banaye clip chahein to `assets/` mein daal sakte hain,
+  par roz ki Reel apne aap Vertex AI se hi banegi.
+- **Dhyan:** Veo kabhi-kabhi line ka koi shabd badal/chhod sakta hai -
+  captions hamari likhi line ke hain. Telegram jhalak mein ank aur naam
+  sunkar hi ✅ dabaiye.
+- **Kharch (andaaza, pakka rate Google Cloud ki Vertex AI pricing par
+  dekhiye):** Veo 3.1 Fast aawaaz ke saath ~$0.10-0.12 prati second (720p/
+  1080p) - har clip poore 8 second ka, yaani ~$0.8-1.0 (~₹70-85). Ek Reel
+  mein 5-7 clip = ~₹400-600; din mein 3 Reel = ~₹1,200-1,800 - ye Google
+  Cloud credit se katta hai (Veo drishya bhi usi credit se). Seema:
+  `veo_max_clips_per_day` (21); kam karni ho to 14 (2 Reel) ya
+  `veo_resolution = 720p`. Telegram par `/fatafat` aaj ke clip dikhata hai.
+- Wapas HeyGen: `/fatafat anchor heygen`; bina anchor: `/fatafat anchor none`.
+
+**Anchor ka chehra khabar ke hisaab se (HeyGen raasta).** Har khabar ka tone alag Claude
 call tay karti hai: `serious` (maut, haadsa, apraadh, aapda), `neutral`,
 `positive` (achhi khabar). Upar se pakka niyam: maut/haadsa/hatya/baadh
 jaise shabd hon to hamesha serious, Claude kuch bhi kahe. Har khabar
