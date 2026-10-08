@@ -1204,6 +1204,12 @@ def do_fatafat(rest):
         sy_fatafat.set_enabled(True)
     elif want in ("off", "band", "0", "nahi"):
         sy_fatafat.set_enabled(False)
+    elif want.startswith("anchor"):
+        eng = want.replace("anchor", "", 1).strip()
+        if eng not in ("veo", "heygen", "none"):
+            sy_telegram.send_message("<code>/fatafat anchor veo|heygen|none</code>")
+            return
+        sy_fatafat.set_anchor(eng)
     elif want in ("abhi", "now", "banao"):
         sy_telegram.send_message("Theek hai - Fatafat Reel ki khabrein chun rahe hain...")
         try:
@@ -1219,7 +1225,9 @@ def do_fatafat(rest):
             sy_telegram.send_message("Abhi Reel ki khabrein nahi ban payin - log dekhiye.")
         return
     elif want:
-        sy_telegram.send_message("<code>/fatafat on|off|abhi</code> ya sirf <code>/fatafat</code>")
+        sy_telegram.send_message("<code>/fatafat on|off|abhi</code>, "
+                                 "<code>/fatafat anchor veo|heygen|none</code> "
+                                 "ya sirf <code>/fatafat</code>")
         return
     sy_telegram.send_message(sy_fatafat.status_text())
 

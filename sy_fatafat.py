@@ -103,8 +103,45 @@ def max_seconds():
     return float(cfg.num("fatafat", "max_seconds", 58))
 
 
+def anchor_engine():
+    """Reel ka anchor kaun banaye: "veo" (Google Veo, GCP credit se - Oct
+    2026 se default), "heygen" (lip-sync, HeyGen API credit), "none"."""
+    eng = str(st.kv_get("fatafat_anchor") or cfg.get("fatafat", "anchor")
+              or "veo").strip().lower()
+    if eng not in ("veo", "heygen", "none"):
+        eng = "veo"
+    if eng == "heygen" and cfg.num("fatafat", "heygen", 1) != 1:
+        eng = "none"
+    return eng
+
+
+def set_anchor(eng):
+    """Telegram: /fatafat anchor veo|heygen|none (config se upar)."""
+    st.kv_set("fatafat_anchor", eng)
+
+
 def use_heygen():
-    return cfg.num("fatafat", "heygen", 1) == 1
+    return anchor_engine() == "heygen"
+
+
+def short_lines():
+    """Veo ek clip mein 8 second - tab har line chhoti."""
+    return anchor_engine() == "veo"
+
+
+def trim_line(line, limit):
+    """Lambi line ko poore vaakyon par chhota karo (limit akshar tak).
+    Pehla vaakya hi lamba ho to line waisi hi (wo tukda Sarvam se bolega)."""
+    line = str(line or "").strip()
+    if len(line) <= limit:
+        return line
+    out = ""
+    for sent in re.split(r"(?<=[।!?])\s+", line):
+        cand = (out + " " + sent).strip()
+        if len(cand) > limit:
+            break
+        out = cand
+    return out or line
 
 
 def preview_mb():
@@ -408,12 +445,20 @@ WRITE_SYSTEM = "\n".join([
 ])
 
 
+VEO_RULE = (
+    "\n\nVEO NIYAM (sabse zaroori): har line_hi ek AI anchor 8 second ke "
+    "clip mein bolegi - isliye line_hi 95 akshar (Devanagari) se ZYADA "
+    "NAHI: 1-2 chhote vaakya, kul 10-15 shabd, sirf sabse badi baat. "
+    "hook_hi bhi 50 akshar tak.")
+
+
 def write(picked, srcs):
     import sy_ai
     parts = []
     for i, (p, (text, _h, _l)) in enumerate(zip(picked, srcs), 1):
         parts += ["=== KHABAR %d ===" % i, text, ""]
-    return sy_ai.ask_json(WRITE_SYSTEM, "\n".join(parts), max_tokens=2500)
+    system = WRITE_SYSTEM + (VEO_RULE if short_lines() else "")
+    return sy_ai.ask_json(system, "\n".join(parts), max_tokens=2500)
 
 
 def est_seconds(text):
@@ -475,6 +520,9 @@ def make_items(j, picked, srcs):
         if not 0 <= n < len(picked):
             continue
         line = re.sub(r"\s+", " ", str(it.get("line_hi") or "")).strip()
+        if short_lines():
+            import sy_fatafat_veo
+            line = trim_line(line, sy_fatafat_veo.LINE_MAX_CHARS)
         head = re.sub(r"\s+", " ", str(it.get("headline_hi") or "")).strip()
         if len(line) < 25 or not head:
             continue
@@ -762,10 +810,21 @@ def produce(story):
         if len(segs) < 2 + min_items():
             raise RuntimeError("plan mein kaafi khabrein nahi")
 
-        log("aawaaz (%d tukde)..." % len(segs))
         for s in segs:
             s["dir"] = os.path.join(workdir, s["tag"])
             os.makedirs(s["dir"], exist_ok=True)
+        n_veo = 0
+        if anchor_engine() == "veo":
+            # VEO ANCHOR: har tukde ka clip jismein presenter khud bolti hai -
+            # jo tukda lage uski aawaaz Veo ki; baaki neeche Sarvam se.
+            import sy_fatafat_veo
+            log("Veo anchor (%d tukde)..." % len(segs))
+            n_veo = sy_fatafat_veo.make_all(segs, workdir, LEAD_PAD, TAIL_PAD)
+
+        log("aawaaz (%d tukde)..." % len([s for s in segs if not s.get("voice")]))
+        for s in segs:
+            if s.get("voice"):
+                continue
             raw, _timing = sy_tts.speak(s["text"], s["dir"])
             secs = sy_tts.duration(raw)
             s["voice"] = pad_wav(raw, os.path.join(s["dir"], "voice_pad.wav"))
@@ -779,6 +838,8 @@ def produce(story):
             # Hook mein ginti badli - wahi ek line dobara (sasta).
             h = segs[0]
             h["text"] = default_hook(n)
+            # Veo wala hook purani ginti bol chuka - ab Sarvam, bina anchor.
+            h["anchor"] = h["veo"] = False
             raw, _t = sy_tts.speak(h["text"], h["dir"])
             secs = sy_tts.duration(raw)
             h["voice"] = pad_wav(raw, os.path.join(h["dir"], "voice_pad.wav"))
@@ -801,8 +862,11 @@ def produce(story):
                 s["media"] = ""
             s["bg"] = studio
 
-        n_anchor = heygen_anchor(segs, workdir)
-        log("anchor %d/%d tukdon par" % (n_anchor, len(segs)))
+        if use_heygen():
+            n_anchor = heygen_anchor(segs, workdir)
+        else:
+            n_anchor = sum(1 for s in segs if s.get("anchor"))
+        log("anchor (%s) %d/%d tukdon par" % (anchor_engine(), n_anchor, len(segs)))
 
         log("render...")
         date = sy_produce.date_hindi()
@@ -816,7 +880,10 @@ def produce(story):
         total = sum(s["dur"] for s in segs)
 
         desc = str(story.get("yt_description") or "").strip()
-        if n_anchor:
+        if any(s.get("veo") and s.get("anchor") for s in segs):
+            import sy_fatafat_veo
+            desc += "\n\n" + sy_fatafat_veo.desc_line()
+        elif n_anchor:
             import sy_heygen
             desc += "\n\n" + sy_heygen.desc_line()
         items = [s for s in segs if s["kind"] == "item"]
@@ -869,18 +936,30 @@ def status_text():
     rows = ["<b>Fatafat Khabar Reel: %s</b>" % ("CHALU" if enabled() else "BAND")]
     rows.append("Baari: %s baje (India)" % ", ".join(str(h) for h in hours()))
     rows.append("Khabrein: %d-%d, %.0f second tak" % (min_items(), max_items(), max_seconds()))
+    eng = anchor_engine()
+    rows.append("Anchor: %s" % {"veo": "Google Veo (GCP credit se, aawaaz Veo ki)",
+                                "heygen": "HeyGen (lip-sync)", "none": "nahi"}[eng])
+    if eng == "veo":
+        try:
+            import sy_fatafat_veo as V
+            ok, why = V.ready()
+            rows.append("Veo: %s | aaj %d/%d clip" % ("taiyaar" if ok else why,
+                                                      V.used_today(), V.max_clips_per_day()))
+        except Exception:
+            pass
     try:
         import sy_heygen
         ok, why = sy_heygen.ready({"beat": BEAT})
-        rows.append("Anchor (HeyGen): %s" % ("haan" if ok and use_heygen() else
-                                             "nahi - " + (why or "[fatafat] heygen = 0")))
-        rows.append("Chehre ke look (gambhir/neutral/muskaan): %s" % (
-            "teeno diye hain" if sy_heygen.looks_ready() else
-            "nahi - ek hi chehra, sirf motion nirdesh (CLOUD.md dekhiye)"))
+        if eng == "heygen":
+            rows.append("HeyGen: %s" % ("haan" if ok else "nahi - " + why))
+            rows.append("Chehre ke look (gambhir/neutral/muskaan): %s" % (
+                "teeno diye hain" if sy_heygen.looks_ready() else
+                "nahi - ek hi chehra, sirf motion nirdesh (CLOUD.md dekhiye)"))
     except Exception:
         pass
     done = st.kv_get(SLOT_KEY) or {}
     if done.get("day") == _today():
         rows.append("Aaj ho chuki baari: %s" % (", ".join(map(str, done.get("slots") or [])) or "-"))
-    rows += ["", "<code>/fatafat on|off</code> · <code>/fatafat abhi</code> - turant ek"]
+    rows += ["", "<code>/fatafat on|off</code> · <code>/fatafat abhi</code> - turant ek",
+             "<code>/fatafat anchor veo|heygen|none</code> - anchor kaun banaye"]
     return "\n".join(rows)
