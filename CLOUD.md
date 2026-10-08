@@ -267,8 +267,9 @@ Purani bolly/viral Reel par nahi - Fatafat Reel (neeche) par haan.
 ## Fatafat Khabar - 1 minute ki Reel (`sy_fatafat.py`)
 
 Din ki sabse badi/trending **3-5 khabrein, 60 second se kam**, 9:16 mein.
-Shuru mein 2-3 second ka hook ("आज की चार बड़ी ख़बरें, फटाफट"), har khabar
-~10-12 second, ant mein subscribe. **Anchor hi mukhya hai** (HeyGen, wahi
+Reel **seedhe pehli khabar se** shuru hoti hai (9 Oct 2026 - shuru ki "आज
+की चार बड़ी ख़बरें, फटाफट" wali clip hata di; wapas chahiye to `[fatafat]
+hook = 1`), har khabar ~8-12 second, ant mein subscribe. **Anchor hi mukhya hai** (HeyGen, wahi
 end-card wali presenter) - khabar ki tasveer/clip upar chhoti khidki mein,
 har khabar par bada headline card, "ख़बर 2/4" aur progress ki dhaariyaan,
 aur bade Devanagari captions (log bina aawaaz dekhte hain). Settings
