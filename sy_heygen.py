@@ -90,6 +90,9 @@ def enabled():
 def set_enabled(on):
     import sy_store as st
     st.kv_set("heygen_on", 1 if on else 0)
+    if on:
+        # Credit bhar kar /heygen on - credit wali rok turant hatao.
+        st.kv_set("heygen_no_credit_at", 0)
 
 
 def api_key():
@@ -175,6 +178,46 @@ def line_slots(story):
     return max(0, cfg.num("heygen", "anchor_slots", 3))
 
 
+# ----------------------------------------------------------- credit khatam
+#
+# 8 Oct 2026: HeyGen ne "HTTP 402 insufficient_credit" / "MOVIO_PAYMENT_
+# INSUFFICIENT_CREDIT ... requires 'api' credits" diya - API ke credit
+# (plan ke credit se ALAG) khatam. Tab har video par aawaaz chadhana aur
+# 20 minute intezaar bekaar hai. Isliye credit ki galti dikhte hi kuch
+# ghante HeyGen ki koshish band, aur Telegram par din mein ek baar saaf
+# sandesh. Credit bharne ke baad /heygen on turant dobara kholta hai.
+NO_CREDIT_KEY = "heygen_no_credit_at"
+NO_CREDIT_HOURS = 6
+
+
+def is_credit_error(text):
+    t = str(text or "").lower()
+    return "insufficient_credit" in t or "insufficient credit" in t or "http 402" in t
+
+
+def note_credit_error(text):
+    import sy_store as st
+    st.kv_set(NO_CREDIT_KEY, time.time())
+    log("HeyGen ka API credit khatam - %d ghante koshish band" % NO_CREDIT_HOURS)
+    try:
+        import sy_telegram
+        sy_telegram._warn_once(
+            "heygen_credit_warned",
+            "<b>HeyGen ka API credit khatam</b>\n\nAnchor ki video nahi ban "
+            "rahi (HeyGen: insufficient credit). Video aur Reel bina anchor ke "
+            "ban rahi hain - rukti nahi.\n\napp.heygen.com -> Settings -> "
+            "API / Billing mein <b>API credit</b> bhariye (plan ke credit se "
+            "alag hote hain), phir <code>/heygen on</code>.")
+    except Exception:
+        pass
+
+
+def credit_blocked():
+    import sy_store as st
+    at = float(st.kv_get(NO_CREDIT_KEY, 0) or 0)
+    return bool(at) and time.time() - at < NO_CREDIT_HOURS * 3600
+
+
 def ready(story=None, vertical=False):
     """(haan/nahi, wajah) - is video mein HeyGen anchor ki koshish ho sakti hai?
     Sasta: koi API call nahi."""
@@ -183,6 +226,8 @@ def ready(story=None, vertical=False):
             return False, "band hai (/heygen on ya [heygen] enabled = 1)"
         if not api_key():
             return False, "HEYGEN_API_KEY Secret nahi hai"
+        if credit_blocked():
+            return False, "HeyGen ka API credit khatam (billing mein bhariye, phir /heygen on)"
         if vertical:
             # Purani bolly/viral Reel. Fatafat Reel apna rasta (sy_fatafat)
             # leti hai aur vertical=False se poochhti hai.
@@ -222,7 +267,10 @@ def _call(method, path, body=None, timeout=120, raw=None, ctype=None):
         out = sy_net.fetch(url, headers=hdr, data=data, method=method,
                            timeout=timeout, retries=1)
     except sy_net.HttpError as e:
-        raise HeyGenError("HTTP %s: %s" % (e.status, _err_text(e.body)))
+        msg = "HTTP %s: %s" % (e.status, _err_text(e.body))
+        if is_credit_error(msg):
+            note_credit_error(msg)
+        raise HeyGenError(msg)
     except Exception as e:
         raise HeyGenError("HeyGen tak baat nahi pahunchi: %s" % e)
     try:
@@ -610,8 +658,11 @@ def wait(video_id, minutes):
         if stt == "completed" and d.get("video_url"):
             return d["video_url"], float(d.get("duration") or 0)
         if stt == "failed":
-            return "", "HeyGen fail: %s %s" % (d.get("failure_code") or "",
-                                               d.get("failure_message") or "")
+            why = "HeyGen fail: %s %s" % (d.get("failure_code") or "",
+                                         d.get("failure_message") or "")
+            if is_credit_error(why):
+                note_credit_error(why)
+            return "", why
         if time.time() >= t_end:
             return "", "%d minute mein taiyaar nahi (%s)" % (minutes, stt or last)
         time.sleep(15)
@@ -721,6 +772,8 @@ def status_text():
     on = enabled()
     rows = ["<b>HeyGen anchor (lip-sync): %s</b>" % ("CHALU" if on else "BAND")]
     rows.append("Chaabi: %s" % ("hai" if api_key() else "NAHI (HEYGEN_API_KEY Secret)"))
+    if credit_blocked():
+        rows.append("<b>API credit KHATAM</b> - billing mein bhariye, phir /heygen on")
     rows.append("Chehra: %s" % ("dashboard avatar (HEYGEN_AVATAR_ID)" if avatar_id()
                                 else "presenter ki tasveer (image)"))
     rows.append("Fatafat Reel ke look (gambhir/neutral/muskaan): %s" % (
