@@ -82,7 +82,7 @@ def _long_in_flight():
     return st.count_status("lv_work") + st.count_status("lv_awaiting")
 
 
-def production_allowed():
+def production_allowed(for_reel=False):
     """Kya ABHI ek NAYA, ghadi-anusaar wala video banaya jaaye? (haan/nahi, wajah)
 
     ASLI BADLAV YAHI HAI. Pehle seema sirf upload par thi
@@ -124,6 +124,19 @@ def production_allowed():
     used = uploads_today() + in_flight_count()
     if used >= cap:
         return False, "aaj ki jagah (%d) bulletin/forced ke baad bhar chuki" % cap
+    # FATAFAT REEL KI JAGAH AARAKSHIT (8 Oct 2026). Aaj ki jo Reel abhi
+    # banni baaki hain, unki jagah aam video nahi le sakte - warna shaam ki
+    # Reel "jagah bhar chuki" kehkar chhoot jaati thi. Reel khud (for_reel)
+    # is aarakshan se nahi rukti.
+    if not for_reel:
+        try:
+            import sy_fatafat
+            keep = sy_fatafat.reels_left_today()
+        except Exception:
+            keep = 0
+        if keep and used + keep >= cap:
+            return False, ("aaj ki %d jagah mein se %d Fatafat Reel ke liye "
+                           "aarakshit" % (cap, keep))
     return True, ""
 
 
@@ -184,7 +197,8 @@ def tick_fatafat():
         return
     # abhi.bat ka ek-baar wala nishan yahan NAHI khaate (wo agli aam video
     # ke liye hai) - production_allowed() use mita deta.
-    ok, why = (True, "") if st.kv_get("produce_bypass_cap_once") else production_allowed()
+    ok, why = ((True, "") if st.kv_get("produce_bypass_cap_once")
+               else production_allowed(for_reel=True))
     if not ok:
         log("Fatafat Reel (%d baje) nahi - %s" % (slot, why))
         sy_fatafat.mark_slot(slot)
