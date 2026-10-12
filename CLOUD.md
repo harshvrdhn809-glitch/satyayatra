@@ -347,6 +347,15 @@ tukda Sarvam aawaaz mein bina anchor.
   dono) baari-baari, pichhli Reel wala chehra dobara nahi. **Ek Reel mein
   ek hi chehra** rehta hai (purana usool). Hamesha wahi end-card wali
   presenter chahiye to `veo_faces = fixed`.
+- **Ek Reel, ek aawaaz (12 Oct 2026):** Veo har clip ki aawaaz naye sire
+  se banata hai, isliye har khabar par aawaaz badal jaati thi. Ab teen
+  pehre: (1) har chehre ki ek pakki aawaaz ka vivran har clip ke prompt mein
+  ("wahi pitch, wahi lehja"); (2) render se pehle har tukde ka pitch naap
+  kar sab ek pitch par (raftaar wahi - hont milte rehte hain; zyada se
+  zyada 3 semitone) aur volume ek barabar (`sy_fatafat_voice.py`); (3) Veo
+  aur Sarvam ki aawaaz kabhi ek Reel mein nahi - jo tukda Veo se na bane wo
+  hat jaata hai, ya itni khabrein na bachen to poori Reel Sarvam aawaaz mein.
+  Fail hua Veo clip ek baar dobara banta hai.
 - **Dhyan:** Veo kabhi-kabhi line ka koi shabd badal/chhod sakta hai -
   captions hamari likhi line ke hain. Telegram jhalak mein ank aur naam
   sunkar hi ✅ dabaiye.

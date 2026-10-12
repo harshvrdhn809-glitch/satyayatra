@@ -2,3 +2,5 @@
 pillow
 truststore
 PyJWT[crypto]
+# Fatafat Reel: har tukde ki aawaaz ka pitch naapna (sy_fatafat_voice.py).
+numpy
