@@ -77,6 +77,29 @@ FACES = (
 )
 FACE_KEY = "ff_veo_face"
 
+# HAR CHEHRE KI EK PAKKI AAWAAZ (12 Oct 2026, Harshvardhan: "ek video mein
+# saari voices ek hi pitch par honi chahiye"). Veo har clip ki aawaaz naye
+# sire se banata hai - uske paas "pichhli clip wali aawaaz" ka koi switch
+# nahi. Isliye har clip ke prompt mein wahi baareek vivran (FACES ke kram
+# mein) - aur uske baad bhi sy_fatafat_voice pitch/volume naap kar barabar
+# karta hai, kyunki prompt ek nirdesh hai, taala nahi.
+VOICES = (
+    "a warm, clear, medium-pitched young Indian female voice",
+    "a calm, steady, slightly low-pitched Indian female voice",
+    "a clear, confident, medium-low Indian male voice",
+    "a bright, friendly, medium-high young Indian female voice",
+    "a deep, measured, low-pitched mature Indian male voice",
+)
+VOICE_STYLE = (
+    "The voice is %s, with exactly the same pitch, tone, accent, volume and "
+    "speed from the first word to the last, like a professional Hindi "
+    "news-reader - no singing, no dramatic rise and fall. ")
+
+
+def voice_for(fno):
+    """Chehre ke number ki aawaaz; fixed/presenter (fno -1) par pehli."""
+    return VOICES[fno] if 0 <= fno < len(VOICES) else VOICES[0]
+
 # Chehre ka bhaav - linga-nirpeksh shabdon mein (chehra stree ya purush,
 # dono ho sakta hai - FACES dekhiye).
 TONE_FACE = {
@@ -199,24 +222,25 @@ NO_PAUSE = (
     "themselves or add any words of their own. ")
 
 
-def speech(text, tone):
+def speech(text, tone, voice=""):
     return ("The presenter looks straight into the camera and reads this news "
             "in clear, natural Hindi like a TV news anchor, at a brisk but "
             "clear pace: "
-            "\"%s\" %s%s " % (str(text).replace('"', "'"), NO_PAUSE,
-                              TONE_FACE.get(tone, TONE_FACE["neutral"])))
+            "\"%s\" %s%s%s " % (str(text).replace('"', "'"), NO_PAUSE,
+                                VOICE_STYLE % (voice or VOICES[0]),
+                                TONE_FACE.get(tone, TONE_FACE["neutral"])))
 
 
-def text_prompt(text, tone, face=""):
+def text_prompt(text, tone, face="", voice=""):
     import sy_explainer
     return ("Photorealistic video of %s, in %s. %s%s"
-            % (face or _face(), sy_explainer.STUDIO, speech(text, tone), TAIL))
+            % (face or _face(), sy_explainer.STUDIO, speech(text, tone, voice), TAIL))
 
 
-def image_prompt(text, tone):
+def image_prompt(text, tone, voice=""):
     return ("The person in the image, exactly as they look in the image - same "
             "face, hair, clothes and studio. %sKeep their face, hair and outfit "
-            "identical to the image. %s" % (speech(text, tone), TAIL))
+            "identical to the image. %s" % (speech(text, tone, voice), TAIL))
 
 
 # ----------------------------------------------------------- ek clip
@@ -227,9 +251,10 @@ def _blocked(why):
             or "video nahi mili" in low)
 
 
-def _clip(text, tone, out, ref_b64="", face=""):
+def _clip(text, tone, out, ref_b64="", face="", voice=""):
     import sy_anchor
-    p = image_prompt(text, tone) if ref_b64 else text_prompt(text, tone, face)
+    p = (image_prompt(text, tone, voice) if ref_b64
+         else text_prompt(text, tone, face, voice))
     # Kota ki ginti (database) yahan NAHI - ye threads mein chalta hai aur
     # SQLite ek thread ka connection doosre mein nahi maanta. make_all ginta hai.
     return sy_anchor.veo_person_clip(p, out, image_b64=ref_b64 or None,
@@ -387,11 +412,20 @@ def make_all(segs, workdir, lead=VEO_LEAD, tail=VEO_TAIL):
         if face_mode() == "rotate":
             face, fno = next_face()
             log("is Reel ka chehra: #%d" % (fno + 1))
+        # Poori Reel mein EK hi aawaaz ka vivran - chehre ke saath judi.
+        voice = voice_for(fno)
 
         def run(s, ref):
             raw = os.path.join(s["dir"], "veo_raw.mp4")
             t0 = time.time()
-            ok, why = _clip(s["text"], s.get("tone") or "neutral", raw, ref, face)
+            ok, why = _clip(s["text"], s.get("tone") or "neutral", raw, ref,
+                            face, voice)
+            if not ok and not _blocked(why):
+                # Ek baar aur - ek tukda chhootne ka matlab Reel mein ya to
+                # doosri aawaaz ya ek khabar kam (sy_fatafat.one_voice).
+                log("tukda %s: dobara koshish (%s)" % (s["tag"], str(why)[:80]))
+                ok, why = _clip(s["text"], s.get("tone") or "neutral", raw, ref,
+                                face, voice)
             if not ok:
                 return s, raw, why
             log("tukda %s (%s) ban gaya %.0fs mein" % (s["tag"], s.get("tone"),

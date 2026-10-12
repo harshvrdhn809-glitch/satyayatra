@@ -693,6 +693,45 @@ def pad_wav(src, out, lead=LEAD_PAD, tail=TAIL_PAD):
     return out
 
 
+def renumber(segs):
+    """Tukde hatne ke baad khabar number (1/3, 2/3...) aur ginti dobara."""
+    k = 0
+    for s in segs:
+        if s["kind"] == "item":
+            s["index"] = k
+            k += 1
+    for s in segs:
+        s["count"] = k
+        if s["kind"] == "cta":
+            s["index"] = k
+    return segs
+
+
+def one_voice(segs):
+    """EK REEL MEIN EK HI AAWAAZ (12 Oct 2026). Veo wala tukda Veo ki aawaaz
+    mein bolta hai, aur jo Veo se na bane wo Sarvam se - do bilkul alag
+    aawaazein (kabhi stree aur purush bhi). Ab mix nahi:
+      - Veo kuch hi tukdon par na bana, aur bache Veo tukdon mein kam se kam
+        min_items khabrein hain -> na bane tukde HATA do (ek khabar kam,
+        par aawaaz ek).
+      - itni khabrein nahi bachti -> poori Reel Sarvam aawaaz mein, bina
+        anchor (Veo clip ka paisa lag chuka, par do aawaaz se behtar)."""
+    veo = [s for s in segs if s.get("veo")]
+    if not veo or len(veo) == len(segs):
+        return segs
+    items_ok = [s for s in veo if s["kind"] == "item"]
+    if len(items_ok) >= min_items():
+        gone = [s["tag"] for s in segs if not s.get("veo")]
+        log("ek aawaaz: Veo na bane tukde hata rahe hain (%s)" % ", ".join(gone))
+        return renumber([s for s in segs if s.get("veo")])
+    log("ek aawaaz: Veo sirf %d/%d khabron par - poori Reel Sarvam aawaaz mein"
+        % (len(items_ok), len([s for s in segs if s["kind"] == "item"])))
+    for s in segs:
+        for k in ("voice", "veo", "anchor", "anchor_file", "anchor_cx", "dur", "speech"):
+            s.pop(k, None)
+    return segs
+
+
 def drop_to_fit(segs, budget):
     """Asli aawaaz ke baad: lambi ho to peeche ki khabar hatao (kam se kam
     min_items), aur ginti/number dobara."""
@@ -881,6 +920,7 @@ def produce(story):
             import sy_fatafat_veo
             log("Veo anchor (%d tukde)..." % len(segs))
             n_veo = sy_fatafat_veo.make_all(segs, workdir, LEAD_PAD, TAIL_PAD)
+            segs = one_voice(segs)
 
         log("aawaaz (%d tukde)..." % len([s for s in segs if not s.get("voice")]))
         for s in segs:
@@ -899,6 +939,11 @@ def produce(story):
         hooks = [s for s in segs if s["kind"] == "hook"]
         for h in hooks:
             h["headline"] = "आज की %d बड़ी ख़बरें" % n
+        if hooks and n != n0 and any(s.get("veo") for s in segs):
+            # Veo wala hook purani ginti bol chuka; Sarvam se dobara bolwana
+            # Reel mein doosri aawaaz laata - isliye hook hi hata do.
+            segs = renumber([s for s in segs if s["kind"] != "hook"])
+            hooks = []
         if hooks and n != n0:
             # Hook mein ginti badli - wahi ek line dobara (sasta).
             h = hooks[0]
@@ -910,6 +955,11 @@ def produce(story):
             total = sy_tts.duration(h["voice"])
             h["dur"] = round(total, 3)
             h["speech"] = (LEAD_PAD, round(max(LEAD_PAD + 0.3, total - TAIL_PAD), 3))
+
+        # EK REEL, EK AAWAAZ: har tukde ka pitch aur volume naap kar barabar
+        # (Veo har clip mein aawaaz naye sire se banata hai).
+        import sy_fatafat_voice
+        sy_fatafat_voice.match(segs)
 
         log("drishya...")
         first = {}
