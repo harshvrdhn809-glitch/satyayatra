@@ -208,6 +208,37 @@ def _is_video(path):
     return str(path or "").lower().endswith((".mp4", ".mov", ".webm", ".mkv", ".ogv"))
 
 
+# BADI TASVEER KA KEEDA (12 Oct 2026). Wikipedia portrait() poori ORIGINAL
+# tasveer laata hai - aksar 30-100 megapixel. `-loop 1` us tasveer ko HAR
+# frame par dobara kholta aur chhota karta hai: 24 MP par 2 second ka tukda
+# 19 second mein bana (chhoti par 2 second), aur asli Reel ke tukde 900
+# second ki seema par timeout hokar poori Reel gira dete the ("Fatafat Reel
+# nahi ban payi ... Command [...ffmpeg...]"). Ab render se pehle ek baar
+# chhoti - 1080x1920 ke liye 2400 px kaafi se zyada.
+STILL_MAX = 2400
+RENDER_TIMEOUT = 300
+
+
+def small_still(path, out_dir, tag="still"):
+    """Badi tasveer ki chhoti copy (lambi taraf STILL_MAX). Path lauta ta hai;
+    gadbad ho to wahi purana path (render phir bhi koshish karta hai)."""
+    try:
+        from PIL import Image
+        Image.MAX_IMAGE_PIXELS = 400 * 1000 * 1000   # 400 MP se badi = bekaar
+        with Image.open(path) as im:
+            if max(im.size) <= STILL_MAX and im.format == "JPEG" and im.mode == "RGB":
+                return path
+            im.draft("RGB", (STILL_MAX, STILL_MAX))   # JPEG: khulte hi chhoti
+            im = im.convert("RGB")
+            im.thumbnail((STILL_MAX, STILL_MAX))
+            out = os.path.join(out_dir, "%s_small.jpg" % tag)
+            im.save(out, "JPEG", quality=90)
+        return out
+    except Exception as e:
+        log("tasveer chhoti nahi hui (%s): %s" % (os.path.basename(path), e))
+        return path
+
+
 def _bars(index, count):
     """Progress ki dhaariyaan (drawbox). index = abhi wali khabar (-1 = hook)."""
     if count <= 0:
@@ -246,7 +277,9 @@ def render_segment(seg, out, workdir):
         if _is_video(path):
             cmd.extend(["-stream_loop", "-1", "-i", path])
         else:
-            cmd.extend(["-loop", "1", "-framerate", str(FPS), "-i", path])
+            # -t: tasveer ka loop utna hi, jitna tukda - ant tak decode nahi.
+            cmd.extend(["-loop", "1", "-framerate", str(FPS), "-t", "%.3f" % (dur + 0.5),
+                        "-i", path])
         n += 1
         return n - 1
 
@@ -266,6 +299,8 @@ def render_segment(seg, out, workdir):
         box_y, box_h = 0, H
 
     src = media or seg.get("bg") or ""
+    if src and not _is_video(src):
+        src = small_still(src, workdir, "seg_%s" % seg["tag"])
     if src:
         k = add_input(src)
         big_w, big_h = int(W * 1.10), int(box_h * 1.10)
@@ -306,9 +341,16 @@ def render_segment(seg, out, workdir):
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
             "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-ar", "48000",
             "-ac", "2", os.path.abspath(out)]
-    r = subprocess.run(cmd, cwd=workdir, capture_output=True, text=True, timeout=900)
+    try:
+        r = subprocess.run(cmd, cwd=workdir, capture_output=True, text=True,
+                           timeout=RENDER_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        # Sandesh chhota aur saaf - poori ffmpeg command Telegram par kaam ki nahi.
+        raise RuntimeError("tukda %s %d second mein render nahi hua (drishya: %s)"
+                           % (seg["tag"], RENDER_TIMEOUT, os.path.basename(src or "-")))
     if r.returncode != 0 or not os.path.exists(out):
-        raise RuntimeError("tukda render nahi hua: " + (r.stderr or "")[-600:])
+        raise RuntimeError("tukda %s render nahi hua: %s"
+                           % (seg["tag"], (r.stderr or "").strip()[-400:]))
     return out
 
 

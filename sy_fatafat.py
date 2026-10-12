@@ -760,6 +760,13 @@ def person_media(names, d):
                 continue
             good = (_ok_clip(path) if kind == "clip"
                     else size > 2048 and sy_media.is_raster(path))
+            if good and kind != "clip":
+                # Wikipedia ki original tasveer 30-100 MP tak - turant chhoti
+                # (render, thumbnail aur vision teeno ke liye).
+                import sy_fatafat_render
+                small = sy_fatafat_render.small_still(path, d, "person")
+                if small != path:
+                    os.replace(small, path)
             if not good:
                 try:
                     os.remove(path)
@@ -931,8 +938,18 @@ def produce(story):
         parts = []
         for s in segs:
             s["date"] = date
-            parts.append(R.render_segment(
-                s, os.path.join(workdir, "seg_%s.mp4" % s["tag"]), workdir))
+            seg_out = os.path.join(workdir, "seg_%s.mp4" % s["tag"])
+            try:
+                parts.append(R.render_segment(s, seg_out, workdir))
+            except Exception as e:
+                # Ek tukde ki tasveer/clip se poori Reel nahi girni chahiye -
+                # wahi tukda bina us drishya ke (studio peeche) dobara.
+                if not s.get("media"):
+                    raise
+                log("tukda %s drishya ke saath nahi bana (%s) - bina drishya"
+                    % (s["tag"], str(e)[:160]))
+                s["media"], s["media_kind"], s["credit"] = "", "", ""
+                parts.append(R.render_segment(s, seg_out, workdir))
         out = os.path.join(cfg.OUTPUT_DIR, sid + "_reel.mp4")
         R.join(parts, out, workdir, music=render_core.pick_music(sid))
         total = sum(s["dur"] for s in segs)
