@@ -1,10 +1,11 @@
-"""Claude se baat karne wala ek hi darwaza.
+"""AI (Gemini ya Claude) se baat karne wala ek hi darwaza.
 
 Sampadak, art director aur yojana - teenon isi se guzarte hain, isliye
 model ka naam, timeout aur JSON nikalne ka tareeka ek jagah rehta hai.
 """
 import base64
 import json
+import os
 import re
 
 import sy_config as cfg
@@ -62,7 +63,7 @@ def _raise_with_body(e):
     raise e
 
 
-def ask(system, user, max_tokens=5000, temperature=0.2):
+def _claude_ask(system, user, max_tokens=5000, temperature=0.2, timeout=240):
     """Claude ko poochho, uska text lauta do."""
     key = cfg.need("anthropic", "api_key")
     model = cfg.get("anthropic", "model") or "claude-sonnet-4-6"
@@ -77,9 +78,11 @@ def ask(system, user, max_tokens=5000, temperature=0.2):
         data = sy_net.post_json(
             URL, payload,
             headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
-            timeout=240, retries=1)
+            timeout=timeout, retries=1)
     except Exception as e:
         _raise_with_body(e)
+    if data.get("stop_reason") == "max_tokens":
+        log("CHETAVNI: Claude ka jawab max_tokens par kata")
 
     out = []
     for part in (data.get("content") or []):
@@ -102,7 +105,7 @@ def _extract_json(text):
         return None
 
 
-def ask_json(system, user, max_tokens=5000, temperature=0.2):
+def ask_json(system, user, max_tokens=5000, temperature=0.2, timeout=240):
     """Wahi, par jawab JSON maan kar. Na mile to None.
 
     Model kabhi-kabhi JSON ke aage-peeche ek line likh deta hai ya use
@@ -110,11 +113,12 @@ def ask_json(system, user, max_tokens=5000, temperature=0.2):
     - pehle bahar ka kachra hata dete hain. None lautne par bulane wala
     chup-chaap ruk jaata hai; adhoore jawab par kaam aage badhana galat hai.
     """
-    text = ask(system, user, max_tokens=max_tokens, temperature=temperature)
+    text = ask(system, user, max_tokens=max_tokens, temperature=temperature,
+               timeout=timeout, want_json=True)
     return _extract_json(text)
 
 
-def ask_vision_json(system, user, image_path, max_tokens=800, temperature=0.0):
+def _claude_vision_json(system, user, image_path, max_tokens=800, temperature=0.0):
     """Claude ko ek tasveer DIKHAKAR poochho - jawab JSON maan kar.
 
     Ab tak sampadak/art-director/yojana teeno sirf TEXT dekhte the - koi
@@ -177,3 +181,162 @@ def ask_vision_json(system, user, image_path, max_tokens=800, temperature=0.0):
 
 def log(*a):
     print("[ai]", *a, flush=True)
+
+
+# ================================================================ GEMINI
+#
+# Oct 2026, Harshvardhan: "mere paas Gemini pro hai - jo kaam abhi
+# Anthropic API se ho raha, wo Gemini se ho". Isliye ab kaun sa AI chalega
+# ye config.ini ke [ai] provider se tay hota hai:
+#
+#   provider = gemini     -> Gemini (neeche do raste, jo mile)
+#   provider = anthropic  -> purana Claude wala rasta, waisa ka waisa
+#
+# Gemini tak do raste hain:
+#   1. [gemini] api_key bhara ho (Google AI Studio ki chaabi) -> seedha
+#      generativelanguage.googleapis.com.
+#   2. Na ho, par Google Cloud ka service account ho (wahi jo Veo ke liye
+#      laga hai) -> Vertex AI. Kharch Google Cloud ke credit se.
+#
+# DHYAAN: Gemini app ki "Pro" subscription (Google One) aur API alag cheez
+# hain - subscription se API ka kota nahi milta. API ke liye AI Studio ki
+# chaabi ya Google Cloud ka billing chahiye.
+#
+# [ai] fallback = 1 ho aur Claude ki chaabi bhari ho, to Gemini ke fail hone
+# (galti/rok) par wahi sawal Claude se - video na ruke. 0 karne par sirf
+# Gemini.
+
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent"
+VERTEX_URL = ("https://%s/v1/projects/%s/locations/%s/publishers/google/"
+              "models/%s:generateContent")
+
+# Khabar mein maut, apraadh, hinsa ki baat aam hai - Gemini ka apna filter
+# use rok na de. Ye filter band karna hai, sach ki jaanch nahi - wo hamare
+# apne niyam (EDITOR_SYSTEM) karte hain.
+_SAFETY = [{"category": c, "threshold": "BLOCK_NONE"} for c in (
+    "HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH",
+    "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT")]
+
+
+def provider():
+    return (cfg.get("ai", "provider") or "anthropic").strip().lower()
+
+
+def _fallback_ok():
+    return cfg.num("ai", "fallback", 1) == 1 and bool(cfg.get("anthropic", "api_key"))
+
+
+def _gemini_model(vision=False):
+    if vision:
+        return (cfg.get("gemini", "vision_model") or cfg.get("gemini", "model")
+                or "gemini-2.5-flash")
+    return cfg.get("gemini", "model") or "gemini-2.5-pro"
+
+
+def _thinking(model):
+    """Gemini 2.5 pehle 'sochta' hai, aur wo soch bhi output ki ginti mein
+    aati hai. Pro par soch band nahi hoti - use seemit rakhte hain; Flash
+    par band (sasta, tez). Model naya ho aur ye na samjhe to None."""
+    m = model.lower()
+    if "2.5-pro" in m:
+        return 2048
+    if "2.5-flash" in m:
+        return 0
+    return None
+
+
+def _gemini_call(model, system, parts, max_tokens, temperature, timeout, want_json):
+    gen = {"temperature": temperature, "maxOutputTokens": int(max_tokens)}
+    budget = _thinking(model)
+    if budget is not None:
+        gen["thinkingConfig"] = {"thinkingBudget": budget}
+        gen["maxOutputTokens"] = int(max_tokens) + budget
+    if want_json:
+        gen["responseMimeType"] = "application/json"
+    body = {"contents": [{"role": "user", "parts": parts}],
+            "generationConfig": gen, "safetySettings": _SAFETY}
+    if system:
+        body["systemInstruction"] = {"parts": [{"text": system}]}
+
+    key = cfg.get("gemini", "api_key")
+    if key:
+        url, headers = GEMINI_URL % model, {"x-goog-api-key": key}
+    else:
+        url, headers = _vertex_target(model)
+    try:
+        data = sy_net.post_json(url, body, headers=headers,
+                                timeout=timeout, retries=1)
+    except Exception as e:
+        _raise_with_body(e)
+
+    cands = data.get("candidates") or []
+    if not cands:
+        why = (data.get("promptFeedback") or {}).get("blockReason") or "khaali jawab"
+        raise Exception("Gemini ne jawab nahi diya: %s" % why)
+    c = cands[0]
+    reason = str(c.get("finishReason") or "")
+    if reason == "MAX_TOKENS":
+        log("CHETAVNI: Gemini ka jawab maxOutputTokens par kata")
+    text = "".join(p.get("text") or "" for p in ((c.get("content") or {}).get("parts") or [])
+                   if isinstance(p, dict) and not p.get("thought"))
+    if not text and reason not in ("STOP", "MAX_TOKENS"):
+        raise Exception("Gemini ne roka: %s" % reason)
+    return text
+
+
+def _vertex_target(model):
+    """AI Studio ki chaabi na ho to Google Cloud (Vertex) se - Veo wala
+    service account. (url, headers)"""
+    import vertex
+    path = cfg.get("veo", "service_account") or ""
+    if not path:
+        path = os.path.join(cfg.HERE, "satyayatra-sa.json")
+    if not os.path.exists(path):
+        raise cfg.ConfigError(
+            "Gemini ke liye na [gemini] api_key hai na Google Cloud ka "
+            "service account (satyayatra-sa.json / GCP_SA_JSON).")
+    with open(path, encoding="utf-8") as f:
+        sa = json.load(f)
+    project = cfg.get("veo", "project") or sa.get("project_id")
+    loc = cfg.get("gemini", "location") or "global"
+    host = ("aiplatform.googleapis.com" if loc == "global"
+            else "%s-aiplatform.googleapis.com" % loc)
+    return (VERTEX_URL % (host, project, loc, model),
+            {"Authorization": "Bearer " + vertex._access_token(sa)})
+
+
+def ask(system, user, max_tokens=5000, temperature=0.2, timeout=240, want_json=False):
+    """AI ko poochho, uska text lauta do. Kaun sa AI - [ai] provider."""
+    if provider() == "gemini":
+        try:
+            return _gemini_call(_gemini_model(), system, [{"text": user}],
+                                max_tokens, temperature, timeout, want_json)
+        except Exception as e:
+            if not _fallback_ok():
+                raise
+            log("Gemini nahi chala, Claude se:", str(e)[:200])
+    return _claude_ask(system, user, max_tokens=max_tokens,
+                       temperature=temperature, timeout=timeout)
+
+
+def ask_vision_json(system, user, image_path, max_tokens=800, temperature=0.0):
+    """Tasveer DIKHAKAR poochho - jawab JSON. Na bane to None (kabhi
+    pipeline nahi rokta) - _claude_vision_json ka doc dekhiye."""
+    if provider() == "gemini":
+        mime = _image_mime(image_path)
+        if not mime:
+            return None
+        try:
+            with open(image_path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode("ascii")
+            text = _gemini_call(
+                _gemini_model(vision=True), system,
+                [{"inlineData": {"mimeType": mime, "data": b64}}, {"text": user}],
+                max_tokens, temperature, 90, True)
+            return _extract_json(text)
+        except Exception as e:
+            log("vision (Gemini):", str(e)[:200])
+            if not _fallback_ok():
+                return None
+    return _claude_vision_json(system, user, image_path,
+                               max_tokens=max_tokens, temperature=temperature)

@@ -114,6 +114,7 @@ def check_live_keys():
     Har jaanch ek chhoti si request hai. Kisi ka kharch nahi hota.
     """
     import sy_net
+    import sy_ai
 
     key = cfg.get("pexels", "api_key")
     if not key:
@@ -288,8 +289,27 @@ def check_live_keys():
             line(BAD, "Telegram bot", str(e))
             problems.append("Telegram ka bot token nahi chal raha")
 
+    if sy_ai.provider() == "gemini":
+        try:
+            # Chhota sa sawal, sirf Gemini se (fallback nahi) - chaabi
+            # chalti hai ya nahi, yahi dekhna hai.
+            sy_ai._gemini_call(sy_ai._gemini_model(), "", [{"text": "hi"}],
+                               16, 0.0, 60, False)
+            line(OK, "Gemini", sy_ai._gemini_model())
+        except cfg.ConfigError as e:
+            line(BAD, "Gemini", str(e))
+            problems.append("Gemini ki chaabi nahi (GEMINI_API_KEY)")
+        except Exception as e:
+            msg = str(e)
+            if "API key" in msg or "API_KEY" in msg or "PERMISSION_DENIED" in msg:
+                line(BAD, "Gemini", msg[:200])
+                problems.append("Gemini ki chaabi nahi chal rahi")
+            else:
+                line(WARN, "Gemini", "jaanch nahi ho payi: %s" % msg[:200])
+
     akey = cfg.get("anthropic", "api_key")
-    if akey:
+    if akey and (sy_ai.provider() != "gemini" or sy_ai._fallback_ok()):
+        label = "Anthropic chaabi" + (" (fallback)" if sy_ai.provider() == "gemini" else "")
         try:
             # Sabse chhoti mumkin request - kharch na ke barabar.
             sy_net.post_json(
@@ -298,18 +318,18 @@ def check_live_keys():
                  "max_tokens": 1, "messages": [{"role": "user", "content": "hi"}]},
                 headers={"x-api-key": akey, "anthropic-version": "2023-06-01"},
                 timeout=40, retries=0)
-            line(OK, "Anthropic chaabi", "chal rahi hai")
+            line(OK, label, "chal rahi hai")
         except sy_net.HttpError as e:
             if e.status in (401, 403):
-                line(BAD, "Anthropic chaabi", "%d - galat chaabi" % e.status)
+                line(BAD, label, "%d - galat chaabi" % e.status)
                 problems.append("Anthropic ki chaabi nahi chal rahi")
             elif e.status == 400:
                 # max_tokens=1 par model shikayat kar sakta hai - chaabi to chali.
-                line(OK, "Anthropic chaabi", "chal rahi hai")
+                line(OK, label, "chal rahi hai")
             else:
-                line(WARN, "Anthropic chaabi", str(e))
+                line(WARN, label, str(e))
         except Exception as e:
-            line(WARN, "Anthropic chaabi", "jaanch nahi ho payi: %s" % e)
+            line(WARN, label, "jaanch nahi ho payi: %s" % e)
 
     # Sarvam ki jaanch jaan-boojhkar nahi ki - uski har request aawaaz
     # banati hai, yaani kharch. Wo pehli video par khud pata chal jayegi.
@@ -323,8 +343,24 @@ def check_config():
         problems.append("config.ini taiyar nahi")
         return
     line(OK, "config.ini")
+    import sy_ai
+    # Script aur art direction ke liye ek AI chahiye - Gemini (chaabi ya
+    # service account) ya Claude.
+    ai = sy_ai.provider()
+    line(OK, "[ai] provider", ai)
+    if ai == "anthropic" and not cfg.get("anthropic", "api_key"):
+        line(BAD, "[anthropic] api_key", "script aur art direction iske bina nahi")
+        problems.append("[anthropic] api_key khaali hai")
+    elif ai == "gemini" and not cfg.get("gemini", "api_key"):
+        sa = cfg.get("veo", "service_account") or os.path.join(cfg.HERE, "satyayatra-sa.json")
+        if os.path.exists(sa):
+            line(WARN, "[gemini] api_key", "khaali - Google Cloud service account (Vertex) se chalega")
+        elif cfg.get("anthropic", "api_key") and sy_ai._fallback_ok():
+            line(WARN, "[gemini] api_key", "khaali - abhi Claude (fallback) se chalega")
+        else:
+            line(BAD, "[gemini] api_key", "script aur art direction iske bina nahi")
+            problems.append("[gemini] api_key khaali hai")
     for sec, key, why in (
-            ("anthropic", "api_key", "script aur art direction iske bina nahi"),
             ("sarvam", "api_key", "aawaaz iske bina nahi"),
             ("telegram", "bot_token", "approval iske bina nahi"),
             ("telegram", "chat_id", "approval kahan bheji jaye"),

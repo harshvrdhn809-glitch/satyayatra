@@ -158,6 +158,7 @@ jobs:
       - name: SatyaYatra
         env:
           SY_BUDGET_MINUTES: ${{ inputs.minutes || '15' }}
+          SY__GEMINI__API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SY__ANTHROPIC__API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SY__SARVAM__API_KEY: ${{ secrets.SARVAM_API_KEY }}
           SY__ELEVENLABS__API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}

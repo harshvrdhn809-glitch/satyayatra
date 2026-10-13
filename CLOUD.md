@@ -91,7 +91,8 @@ Repo → Settings → Secrets and variables → Actions → New repository secre
 | Secret | Zaroori? | Kya hai |
 |---|---|---|
 | `STATE_KEY` | **haan** | upar wala password |
-| `ANTHROPIC_API_KEY` | **haan** | Claude |
+| `GEMINI_API_KEY` | **haan*** | Gemini (aistudio.google.com -> Get API key). Script, art direction, tasveer-jaanch |
+| `ANTHROPIC_API_KEY` | nahi | Claude - Gemini na chale to uski jagah (`[ai] fallback`) |
 | `SARVAM_API_KEY` | **haan*** | aawaaz (Sarvam) |
 | `ELEVENLABS_API_KEY` | * | aawaaz, agar `config.cloud.ini` mein `[tts] provider = elevenlabs` |
 | `SATYAYATRA_TELEGRAM_BOT_TOKEN` | **haan** | SatyaYatra bot (alag bot!) |
@@ -108,7 +109,13 @@ Repo → Settings → Secrets and variables → Actions → New repository secre
 | `HEYGEN_AVATAR_ID` | nahi | sirf agar dashboard mein photo avatar banaya ho |
 | `HEYGEN_LOOK_SERIOUS`, `HEYGEN_LOOK_NEUTRAL`, `HEYGEN_LOOK_POSITIVE` | nahi | Fatafat Reel - presenter ke teen look (neeche "Fatafat Khabar") |
 
-\* Sarvam ya ElevenLabs, dono mein se ek.
+\* Sarvam ya ElevenLabs, dono mein se ek. Gemini ki chaabi na ho to
+`GCP_SA_JSON` wala service account bhi Gemini chala leta hai (Vertex AI,
+Google Cloud ke billing se). Gemini app ki "Pro" subscription se API
+chaabi nahi milti - wo alag hai.
+
+Kaun sa AI chale: `config.cloud.ini` ka `[ai] provider` (`gemini` ya
+`anthropic`).
 
 Baaki settings (veo chalu ya nahi, kitni der mein kya chale) `config.cloud.ini`
 mein hain. Wahan **kabhi chaabi mat likhiye** — wo file sabko dikhti hai.

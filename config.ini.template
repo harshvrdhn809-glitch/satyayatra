@@ -7,7 +7,28 @@
 # Har value n8n ke Credentials se uthai ja sakti hai. Neeche bataya hai
 # ki kaun si kahan milegi.
 
+[ai]
+# Kaun sa AI script, art direction aur tasveer-jaanch kare:
+#   gemini     -> Google Gemini (neeche [gemini])
+#   anthropic  -> Claude (neeche [anthropic])
+provider = gemini
+# 1 = Gemini na chale (galti/rok) to wahi sawal Claude se, agar Claude ki
+# chaabi bhari ho. 0 = sirf Gemini.
+fallback = 1
+
+[gemini]
+# Google AI Studio (aistudio.google.com -> Get API key). Gemini app ki
+# "Pro" subscription se API chaabi nahi milti - ye alag hai.
+# Khaali ho to Google Cloud ka service account (Veo wala) - Vertex AI.
+api_key =
+model = gemini-2.5-pro
+# tasveer-jaanch baar-baar chalti hai - tez/sasta model
+vision_model = gemini-2.5-flash
+# sirf Vertex raaste ke liye
+location = global
+
 [anthropic]
+# Claude - [ai] provider = anthropic par, ya Gemini ke fallback ke liye.
 # n8n -> Credentials -> "Header Auth account" -> Value (sk-ant- se shuru)
 api_key =
 model = claude-sonnet-4-6

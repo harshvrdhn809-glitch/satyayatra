@@ -209,7 +209,8 @@ def masked_summary():
     rows = []
     provider = get("tts", "provider") or "sarvam"
     rows.append("  [tts] provider       %s" % provider)
-    for sec, key in (("anthropic", "api_key"), ("sarvam", "api_key"),
+    rows.append("  [ai] provider        %s" % (get("ai", "provider") or "anthropic"))
+    for sec, key in (("gemini", "api_key"), ("anthropic", "api_key"), ("sarvam", "api_key"),
                      ("elevenlabs", "api_key"), ("elevenlabs", "voice_id"),
                      ("pexels", "api_key"), ("telegram", "bot_token"),
                      ("telegram", "chat_id")):

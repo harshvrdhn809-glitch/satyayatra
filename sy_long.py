@@ -735,30 +735,15 @@ def _say(text):
 # ------------------------------------------------------------- srot + script
 
 def _ask_long(system, user, max_tokens=16000, temperature=0.3):
-    """sy_ai.ask jaisa, par lambe jawab ke liye lamba intezaar.
+    """sy_ai.ask_json jaisa, par lambe jawab ke liye lamba intezaar.
 
-    8,000 akshar ki Hindi script ek lambi output hai - sy_ai.ask ka 240
-    second ka intezaar uske liye kam pad sakta hai.
+    8,000 akshar ki Hindi script ek lambi output hai - 240 second ka
+    intezaar uske liye kam pad sakta hai. AI kaun sa ho (Gemini/Claude) ye
+    sy_ai tay karta hai.
     """
     import sy_ai
-    payload = {
-        "model": cfg.get("anthropic", "model") or "claude-sonnet-4-6",
-        "max_tokens": max_tokens, "temperature": temperature,
-        "system": system, "messages": [{"role": "user", "content": user}],
-    }
-    try:
-        data = sy_net.post_json(
-            sy_ai.URL, payload,
-            headers={"x-api-key": cfg.need("anthropic", "api_key"),
-                     "anthropic-version": "2023-06-01"},
-            timeout=600, retries=1)
-    except Exception as e:
-        sy_ai._raise_with_body(e)
-    text = "".join(p.get("text") or "" for p in (data.get("content") or [])
-                   if isinstance(p, dict) and p.get("type") == "text")
-    if data.get("stop_reason") == "max_tokens":
-        log("CHETAVNI: jawab max_tokens par kata")
-    return sy_ai._extract_json(text)
+    return sy_ai.ask_json(system, user, max_tokens=max_tokens,
+                          temperature=temperature, timeout=600)
 
 
 def collect_sources(topic):
