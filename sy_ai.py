@@ -207,6 +207,7 @@ def log(*a):
 # Gemini.
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent"
+GEMINI_LIST = "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000"
 VERTEX_URL = ("https://%s/v1/projects/%s/locations/%s/publishers/google/"
               "models/%s:generateContent")
 
@@ -226,17 +227,57 @@ def _fallback_ok():
     return cfg.num("ai", "fallback", 1) == 1 and bool(cfg.get("anthropic", "api_key"))
 
 
+# Google purane model band karta rehta hai (Oct 2026: "gemini-2.5-pro is
+# no longer available" - aur us din ek bhi khabar nahi bani). Isliye
+# default "-latest" naam hain, jo hamesha us waqt ke sabse naye Pro/Flash
+# par jaate hain. Aur config mein likha naam band ho chuka ho (404), to
+# Google se chalu modelon ki suchi lekar sabse naya Pro/Flash khud chun
+# lete hain (_replacement).
+_swapped = {}
+
+
 def _gemini_model(vision=False):
     if vision:
-        return (cfg.get("gemini", "vision_model") or cfg.get("gemini", "model")
-                or "gemini-2.5-flash")
-    return cfg.get("gemini", "model") or "gemini-2.5-pro"
+        m = (cfg.get("gemini", "vision_model") or cfg.get("gemini", "model")
+             or "gemini-flash-latest")
+    else:
+        m = cfg.get("gemini", "model") or "gemini-pro-latest"
+    return _swapped.get(m, m)
+
+
+def _version(name):
+    v = re.search(r"gemini-(\d+(?:\.\d+)?)", name)
+    return float(v.group(1)) if v else 0.0
+
+
+def _replacement(dead, key):
+    """Band ho chuke model ki jagah sabse naya chalu Pro (ya Flash)."""
+    kind = "flash" if "flash" in dead else "pro"
+    data = sy_net.get_json(GEMINI_LIST, headers={"x-goog-api-key": key},
+                           timeout=30, retries=1)
+    best = None
+    for m in data.get("models") or []:
+        name = str(m.get("name") or "").replace("models/", "")
+        if "generateContent" not in (m.get("supportedGenerationMethods") or []):
+            continue
+        if not name.startswith("gemini-") or kind not in name:
+            continue
+        if any(x in name for x in ("image", "tts", "audio", "live", "lite",
+                                    "embedding", "thinking", "robotics", "computer")):
+            continue
+        # sabse naya version; barabar ho to preview/experimental se pehle stable
+        rank = (_version(name), "preview" not in name and "exp" not in name)
+        if best is None or rank > best[0]:
+            best = (rank, name)
+    return best[1] if best else ""
 
 
 def _thinking(model):
     """Gemini 2.5 pehle 'sochta' hai, aur wo soch bhi output ki ginti mein
     aati hai. Pro par soch band nahi hoti - use seemit rakhte hain; Flash
-    par band (sasta, tez). Model naya ho aur ye na samjhe to None."""
+    par band (sasta, tez). Model naya ho aur ye na samjhe to None - tab
+    wo apne hisaab se sochta hai, isliye _gemini_call output ki jagah
+    badha deta hai."""
     m = model.lower()
     if "2.5-pro" in m:
         return 2048
@@ -251,6 +292,10 @@ def _gemini_call(model, system, parts, max_tokens, temperature, timeout, want_js
     if budget is not None:
         gen["thinkingConfig"] = {"thinkingBudget": budget}
         gen["maxOutputTokens"] = int(max_tokens) + budget
+    else:
+        # naya/anjaan model: soch bhi isi ginti mein aati hai - jagah do,
+        # warna jawab beech mein kat jaata
+        gen["maxOutputTokens"] = int(max_tokens) + 8192
     if want_json:
         gen["responseMimeType"] = "application/json"
     body = {"contents": [{"role": "user", "parts": parts}],
@@ -264,8 +309,23 @@ def _gemini_call(model, system, parts, max_tokens, temperature, timeout, want_js
     else:
         url, headers = _vertex_target(model)
     try:
-        data = sy_net.post_json(url, body, headers=headers,
-                                timeout=timeout, retries=1)
+        try:
+            data = sy_net.post_json(url, body, headers=headers,
+                                    timeout=timeout, retries=1)
+        except sy_net.HttpError as e:
+            # model band ho gaya / naam badal gaya -> naya chunkar ek baar aur
+            if not (key and e.status == 404):
+                raise
+            new = _replacement(model, key)
+            if not new or new == model:
+                raise
+            log("model %s band hai - ab %s (config.ini [gemini] mein naam "
+                "badal dijiye)" % (model, new))
+            for k, v in list(_swapped.items()) + [(model, model)]:
+                if v == model:
+                    _swapped[k] = new
+            data = sy_net.post_json(GEMINI_URL % new, body, headers=headers,
+                                    timeout=timeout, retries=1)
     except Exception as e:
         _raise_with_body(e)
 
