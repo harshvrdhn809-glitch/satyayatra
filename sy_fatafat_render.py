@@ -167,11 +167,13 @@ def build_ass(seg, path):
 
     # Upar ki patti
     ev("Brand", 0, dur, "{\\pos(40,62)}" + _esc(BRAND))
-    ev("Show", 0, dur, "{\\pos(42,120)}" + _esc(SHOW + ("  ·  " + seg["date"]
+    show = "फटाफट ख़बर" if seg.get("single") else SHOW   # ek khabar = ekvachan
+    ev("Show", 0, dur, "{\\pos(42,120)}" + _esc(show + ("  ·  " + seg["date"]
                                                         if seg.get("date") else "")))
     if seg["kind"] == "item":
-        ev("Count", 0, dur, "{\\pos(1040,75)}ख़बर %d/%d"
-           % (seg["index"] + 1, seg["count"]))
+        # Ek-khabar Reel par hisse ka naam ("असली बात"), warna "ख़बर 2/4".
+        badge = seg.get("badge") or "ख़बर %d/%d" % (seg["index"] + 1, seg["count"])
+        ev("Count", 0, dur, "{\\pos(1040,75)}" + _esc(badge))
 
     # Headline card - shuru mein halka 'pop'
     cy = CARD_Y if anchor else CARD_Y_FULL

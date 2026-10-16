@@ -123,6 +123,13 @@ def set_anchor(eng):
     st.kv_set("fatafat_anchor", eng)
 
 
+def mode():
+    """single = har Reel mein EK khabar, ~1 minute, hisson mein (16 Oct 2026,
+    default - sy_fatafat_story.py). multi = purana: 3-5 alag khabrein."""
+    m = (cfg.get("fatafat", "mode") or "single").strip().lower()
+    return m if m in ("single", "multi") else "single"
+
+
 def hook_on():
     """Shuru ki "आज की चार बड़ी ख़बरें, फटाफट" wali line. 9 Oct 2026,
     Harshvardhan: "pehli clip hata dijiye, seedhe news wala part aaye" -
@@ -407,8 +414,9 @@ def pick(heads, hints, used):
     return out
 
 
-def collect(item, heads):
-    """Is khabar ke srot: summary + 1-2 khule lekh. (text, hosts, links)"""
+def collect(item, heads, max_articles=2):
+    """Is khabar ke srot: summary + 1-2 (ek-khabar Reel par 3) khule lekh.
+    (text, hosts, links)"""
     import sy_ingest
     import sy_net
     texts, hosts, links = [], [], []
@@ -423,7 +431,7 @@ def collect(item, heads):
     # summary kaafi hain; lekh na khule to summary hi srot hai.
     got = 0
     for url in links:
-        if got >= 2:
+        if got >= max_articles:
             break
         try:
             if sy_ingest.link_rank(url) >= 3:
@@ -572,6 +580,9 @@ def make_items(j, picked, srcs):
 
 def build(slot=None):
     """Aaj ki is baari ki Reel ki script banao, katar mein daalo. sid ya ""."""
+    if mode() == "single":
+        import sy_fatafat_story
+        return sy_fatafat_story.build(slot)
     sid = "ff_%s" % time.strftime("%Y%m%d_%H")
     if st.get(sid):
         return ""
@@ -640,7 +651,10 @@ def build(slot=None):
 def segments(plan):
     """Plan -> tukde: [hook,] har khabar, CTA. Hook sirf [fatafat] hook = 1
     par - default Reel seedhe pehli khabar se (katar ki purani plan mein
-    hook likha ho tab bhi)."""
+    hook likha ho tab bhi). Ek-khabar plan (mode single) sy_fatafat_story se."""
+    if plan.get("mode") == "single":
+        import sy_fatafat_story
+        return sy_fatafat_story.segments(plan)
     items = plan.get("items") or []
     n = len(items)
     segs = []
@@ -720,7 +734,14 @@ def one_voice(segs):
     if not veo or len(veo) == len(segs):
         return segs
     items_ok = [s for s in veo if s["kind"] == "item"]
-    if len(items_ok) >= min_items():
+    # Ek-khabar Reel mein hissa hatane se kahani toot-ti hai ("क्या हुआ" ke
+    # baad seedhe "नतीजा"). Wahan ya to sab Veo, ya sab Sarvam. Sirf CTA na
+    # bana ho to bas wahi hatao.
+    single = any(s.get("single") for s in segs)
+    if single and all(s.get("veo") for s in segs if s["kind"] == "item"):
+        log("ek aawaaz: CTA Veo se nahi bana - CTA hata rahe hain")
+        return renumber([s for s in segs if s.get("veo")])
+    if not single and len(items_ok) >= min_items():
         gone = [s["tag"] for s in segs if not s.get("veo")]
         log("ek aawaaz: Veo na bane tukde hata rahe hain (%s)" % ", ".join(gone))
         return renumber([s for s in segs if s.get("veo")])
@@ -737,6 +758,17 @@ def drop_to_fit(segs, budget):
     min_items), aur ginti/number dobara."""
     def total():
         return sum(s["dur"] for s in segs)
+    if any(s.get("single") for s in segs):
+        # Ek-khabar: sirf vaikalpik hisse (peeche se) - pehla, asli baat aur
+        # nateeja kabhi nahi.
+        import sy_fatafat_story as FS
+        while total() > budget:
+            opt = [s for s in segs if s.get("badge") in FS.OPTIONAL]
+            if not opt:
+                log("ek-khabar Reel %.1fs - zaroori hisse, aise hi" % total())
+                break
+            segs.remove(opt[-1])
+        return renumber(segs)
     while total() > budget:
         items = [s for s in segs if s["kind"] == "item"]
         if len(items) <= min_items():
@@ -968,6 +1000,17 @@ def produce(story):
                 s["media"], s["credit"] = _media_for(s, s["dir"])
                 if s["media"] and not first:
                     first = s
+        if any(s.get("single") for s in segs):
+            # Ek hi khabar - jis hisse ka apna drishya na mile wo paas wale
+            # hisse ka le (pichla, warna agla), studio/khaali screen nahi.
+            its = [s for s in segs if s["kind"] == "item"]
+            for i, s in enumerate(its):
+                if s.get("media"):
+                    continue
+                near = [t for t in its[:i][::-1] + its[i + 1:] if t.get("media")]
+                if near:
+                    s["media"], s["credit"] = near[0]["media"], near[0].get("credit") or ""
+                    s["media_kind"] = near[0].get("media_kind") or ""
         studio = sy_scenes.studio_path() or ""
         for s in segs:
             if s["kind"] == "hook":
@@ -1022,7 +1065,9 @@ def produce(story):
             if os.path.exists(p):
                 art = p
                 break
-        ok, why = thumb.build(thumb_path, text=items[0]["headline"],
+        thumb_text = ((plan.get("story") or {}).get("headline_hi")
+                      or items[0]["headline"])
+        ok, why = thumb.build(thumb_path, text=thumb_text,
                               keyword="फटाफट ख़बरें", art_path=art, style="slab",
                               ai_label=True, workdir=workdir, vertical=True)
         if not ok:
@@ -1059,6 +1104,8 @@ def produce(story):
 
 def status_text():
     rows = ["<b>Fatafat Khabar Reel: %s</b>" % ("CHALU" if enabled() else "BAND")]
+    rows.append("Roop: %s" % ("EK khabar, ~1 minute (क्या हुआ > असली बात > नतीजा)"
+                              if mode() == "single" else "kai khabrein ek Reel mein"))
     rows.append("Baari: %s baje (India)" % ", ".join(str(h) for h in hours()))
     rows.append("Khabrein: %d-%d, %.0f second tak" % (min_items(), max_items(), max_seconds()))
     eng = anchor_engine()

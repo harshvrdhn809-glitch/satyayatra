@@ -273,7 +273,25 @@ Purani bolly/viral Reel par nahi - Fatafat Reel (neeche) par haan.
 
 ## Fatafat Khabar - 1 minute ki Reel (`sy_fatafat.py`)
 
-Din ki sabse badi/trending **3-5 khabrein, 60 second se kam**, 9:16 mein.
+**16 Oct 2026 se: har Reel mein EK viral khabar** (`[fatafat] mode = single`,
+`sy_fatafat_story.py`). AI aaj ke shirshak + Google/YouTube/X trends se sabse
+viral khabar ke 1-3 umeedwaar chunta hai; pehle umeedwaar ke 3 lekh tak
+khol kar ~1 minute ka tathyon wala nichod - **4-6 hisse**, har hissa ek
+tukda (Veo par 8 second), upar patti mein hisse ka naam:
+
+`क्या हुआ` (hamesha pehla) > `पूरा मामला` > `असली बात` (hamesha) > `अहम तथ्य`
+> `किसने क्या कहा` > `अब आगे`/`नतीजा` (hamesha aakhri) > subscribe.
+
+Har hisse ka har ank srot mein milna chahiye - vaikalpik hisse mein na mile
+to wo hissa hat-ta hai, zaroori hisse mein na mile to wo khabar chhod kar
+agla umeedwaar. Reel lambi ho to sirf vaikalpik hisse hat-te hain. Ek hissa
+Veo se na bane to koi hissa nahi hat-ta (kahani toot-ti) - poori Reel ek hi
+Sarvam aawaaz mein. Jis hisse ki apni tasveer na mile wo paas wale hisse
+ki leta hai. Hisson ki ginti: `story_parts_min` / `story_parts_max` (4/6).
+Purana roop (ek Reel mein 3-5 khabrein): `mode = multi` - neeche ka varnan
+usi ka hai, baaki sab (anchor, chehra, aawaaz, baari, approval) dono par ek.
+
+Purana roop: din ki sabse badi/trending **3-5 khabrein, 60 second se kam**, 9:16 mein.
 Reel **seedhe pehli khabar se** shuru hoti hai (9 Oct 2026 - shuru ki "आज
 की चार बड़ी ख़बरें, फटाफट" wali clip hata di; wapas chahiye to `[fatafat]
 hook = 1`), har khabar ~8-12 second, ant mein subscribe. **Anchor hi mukhya hai** (HeyGen, wahi
